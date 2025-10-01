@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/YangQing-Lin/cc-switch-cli/internal/config"
+	"github.com/YangQing-Lin/cc-switch-cli/internal/i18n"
 	"github.com/spf13/cobra"
 )
 
@@ -58,6 +59,9 @@ func Execute() {
 }
 
 func init() {
+	// 初始化 i18n
+	_ = i18n.Init()
+
 	// 添加全局 flag
 	rootCmd.PersistentFlags().StringVar(&configDir, "dir", "", "使用自定义配置目录")
 

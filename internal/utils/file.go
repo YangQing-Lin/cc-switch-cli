@@ -56,17 +56,21 @@ func AtomicWriteFile(path string, data []byte, perm os.FileMode) error {
 	}
 
 	// 设置权限
+	// 如果原文件存在且未指定特殊权限，保留原文件权限
+	if perm == 0 && FileExists(path) {
+		if stat, err := os.Stat(path); err == nil {
+			perm = stat.Mode()
+		} else {
+			perm = 0644 // 默认权限
+		}
+	} else if perm == 0 {
+		perm = 0644 // 默认权限
+	}
+
 	if err := os.Chmod(tmpPath, perm); err != nil {
 		// Windows 可能不支持某些权限，忽略错误
 		if runtime.GOOS != "windows" {
 			return fmt.Errorf("设置文件权限失败: %w", err)
-		}
-	}
-
-	// 保留原文件权限（如果存在）
-	if FileExists(path) && runtime.GOOS != "windows" {
-		if stat, err := os.Stat(path); err == nil {
-			os.Chmod(tmpPath, stat.Mode())
 		}
 	}
 

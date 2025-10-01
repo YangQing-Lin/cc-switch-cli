@@ -1040,3 +1040,8 @@ func ExtractBaseURLFromProvider(p *Provider) string {
 
 	return ""
 }
+
+// GetConfigPath 返回配置文件路径
+func (m *Manager) GetConfigPath() string {
+	return m.configPath
+}
