@@ -212,9 +212,46 @@ GOOS=linux GOARCH=amd64 go build -o cc-switch-linux
 
 ### 运行测试
 
+本项目包含完整的单元测试和集成测试：
+
 ```bash
+# 运行所有测试
 go test ./...
+
+# 运行单元测试（带覆盖率）
+go test -cover ./internal/...
+
+# 运行集成测试
+go test -v ./test/integration/...
+
+# 使用测试脚本
+./test.bat           # Windows
+./test.sh            # Linux/macOS
+
+# 生成覆盖率报告
+go test -coverprofile=coverage.out ./internal/...
+go tool cover -html=coverage.out
 ```
+
+#### 测试覆盖率
+
+- **internal/utils**: 69.7% - 文件原子操作、JSON读写
+- **internal/settings**: 82.4% - 设置管理、语言切换
+- **internal/i18n**: 60.0% - 国际化支持（中英文）
+- **internal/vscode**: 25.0% - VS Code/Cursor 集成
+
+#### 集成测试
+
+集成测试验证了多个组件协同工作：
+
+- ✅ Provider CRUD 操作
+- ✅ 配置持久化（模拟重启）
+- ✅ 多应用支持（Claude/Codex）
+- ✅ 配置文件结构验证
+- ✅ 并发访问保护
+- ✅ 数据完整性验证
+
+查看 [docs/testing.md](docs/testing.md) 了解详细的测试文档。
 
 ## 许可证
 

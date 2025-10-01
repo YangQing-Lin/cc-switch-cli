@@ -212,9 +212,46 @@ GOOS=linux GOARCH=amd64 go build -o cc-switch-linux
 
 ### Running Tests
 
+This project includes comprehensive unit tests and integration tests:
+
 ```bash
+# Run all tests
 go test ./...
+
+# Run unit tests with coverage
+go test -cover ./internal/...
+
+# Run integration tests
+go test -v ./test/integration/...
+
+# Use test scripts
+./test.bat           # Windows
+./test.sh            # Linux/macOS
+
+# Generate coverage report
+go test -coverprofile=coverage.out ./internal/...
+go tool cover -html=coverage.out
 ```
+
+#### Test Coverage
+
+- **internal/utils**: 69.7% - Atomic file operations, JSON I/O
+- **internal/settings**: 82.4% - Settings management, language switching
+- **internal/i18n**: 60.0% - Internationalization support (EN/ZH)
+- **internal/vscode**: 25.0% - VS Code/Cursor integration
+
+#### Integration Tests
+
+Integration tests verify multiple components working together:
+
+- ✅ Provider CRUD operations
+- ✅ Configuration persistence (simulated restart)
+- ✅ Multi-app support (Claude/Codex)
+- ✅ Configuration file structure validation
+- ✅ Concurrent access protection
+- ✅ Data integrity verification
+
+See [docs/testing.md](docs/testing.md) for detailed testing documentation.
 
 ## License
 
