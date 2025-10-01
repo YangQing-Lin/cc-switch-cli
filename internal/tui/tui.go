@@ -56,15 +56,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "list":
 			return m.handleListKeys(msg)
 		case "add", "edit":
-			return m.handleFormKeys(msg)
+			// 先处理特殊键,再更新输入框
+			handled, newModel, cmd := m.handleFormKeys(msg)
+			if handled {
+				return newModel, cmd
+			}
+			// 未被特殊键处理,继续更新输入框
+			return m.updateInputs(msg)
 		case "delete":
 			return m.handleDeleteKeys(msg)
 		}
-	}
-
-	if m.mode == "add" || m.mode == "edit" {
-		cmd := m.updateInputs(msg)
-		return m, cmd
 	}
 
 	return m, nil
@@ -87,11 +88,11 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "q", "ctrl+c":
 		return m, tea.Quit
-	case "up", "k":
+	case "up":
 		if m.cursor > 0 {
 			m.cursor--
 		}
-	case "down", "j":
+	case "down":
 		if m.cursor < len(m.providers)-1 {
 			m.cursor++
 		}
@@ -144,14 +145,14 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// Form handlers
-func (m Model) handleFormKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+// Form handlers - 返回 (handled, model, cmd)
+func (m Model) handleFormKeys(msg tea.KeyMsg) (bool, tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		m.mode = "list"
 		m.message = ""
 		m.err = nil
-		return m, nil
+		return true, m, nil
 	case "tab", "shift+tab", "up", "down":
 		if msg.String() == "up" || msg.String() == "shift+tab" {
 			m.focusIndex--
@@ -171,11 +172,13 @@ func (m Model) handleFormKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.inputs[i].Blur()
 			}
 		}
-		return m, tea.Batch(cmds...)
+		return true, m, tea.Batch(cmds...)
 	case "enter", "ctrl+s":
 		m.submitForm()
+		return true, m, nil
 	}
-	return m, nil
+	// 未处理,返回 false
+	return false, m, nil
 }
 
 func (m *Model) submitForm() {
@@ -450,10 +453,10 @@ func (m *Model) initForm(provider *config.Provider) {
 	}
 }
 
-func (m *Model) updateInputs(msg tea.Msg) tea.Cmd {
+func (m Model) updateInputs(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmds := make([]tea.Cmd, len(m.inputs))
 	for i := range m.inputs {
 		m.inputs[i], cmds[i] = m.inputs[i].Update(msg)
 	}
-	return tea.Batch(cmds...)
+	return m, tea.Batch(cmds...)
 }

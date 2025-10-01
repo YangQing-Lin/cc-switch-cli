@@ -54,8 +54,7 @@ cc-switch ui
 
 | Shortcut | Function |
 |----------|----------|
-| `↑` / `k` | Move cursor up |
-| `↓` / `j` | Move cursor down |
+| `↑` / `↓` | Move cursor up/down (select configuration) |
 | `Enter` | Switch to selected configuration |
 | `a` | Add new configuration |
 | `e` | Edit selected configuration |
@@ -64,8 +63,9 @@ cc-switch ui
 | `q` / `Ctrl+C` | Exit |
 
 In form editing mode:
-- `Tab` / `Shift+Tab` - Switch input focus
-- `Enter` - Save and submit
+- `Tab` / `Shift+Tab` / `↑` / `↓` - Switch input focus
+- Type directly - Edit the currently focused input field
+- `Enter` / `Ctrl+S` - Save and submit
 - `ESC` - Cancel and return
 
 ### Command-Line Mode
