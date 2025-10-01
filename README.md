@@ -21,12 +21,115 @@
 ```bash
 git clone https://github.com/YangQing-Lin/cc-switch-cli.git
 cd cc-switch-cli
-go build -o cc-switch
+
+# Windows
+go build -o ccs.exe
+
+# macOS / Linux
+go build -o ccs
 ```
 
 ### 下载预编译二进制文件
 
 从[发布页面](https://github.com/YangQing-Lin/cc-switch-cli/releases)下载适合您操作系统的预编译二进制文件。
+
+### 配置环境变量
+
+为了在任何目录下都能使用 `ccs` 命令,需要将其添加到系统环境变量:
+
+#### Windows
+
+**方法1: 通过 PowerShell**
+```powershell
+# 将二进制文件移动到用户目录
+mkdir -Force $env:USERPROFILE\bin
+move ccs.exe $env:USERPROFILE\bin\
+
+# 添加到 PATH (当前会话)
+$env:Path += ";$env:USERPROFILE\bin"
+
+# 永久添加到 PATH
+[Environment]::SetEnvironmentVariable("Path", $env:Path + ";$env:USERPROFILE\bin", "User")
+```
+
+**方法2: 通过系统设置**
+1. 将 `ccs.exe` 复制到一个目录,如 `C:\Program Files\ccs\`
+2. 右键点击"此电脑" → "属性" → "高级系统设置"
+3. 点击"环境变量"
+4. 在"用户变量"中找到 `Path`,点击"编辑"
+5. 点击"新建",添加 `C:\Program Files\ccs\`
+6. 点击"确定"保存
+
+#### macOS
+
+```bash
+# 将二进制文件移动到 /usr/local/bin
+sudo mv ccs /usr/local/bin/
+
+# 或者移动到用户目录
+mkdir -p ~/bin
+mv ccs ~/bin/
+
+# 添加到 PATH (如果使用 ~/bin)
+echo 'export PATH="$HOME/bin:$PATH"' >> ~/.zshrc   # zsh
+echo 'export PATH="$HOME/bin:$PATH"' >> ~/.bashrc  # bash
+
+# 重新加载配置
+source ~/.zshrc  # 或 source ~/.bashrc
+```
+
+#### Linux
+
+```bash
+# 方法1: 系统级安装 (需要 sudo)
+sudo mv ccs /usr/local/bin/
+sudo chmod +x /usr/local/bin/ccs
+
+# 方法2: 用户级安装
+mkdir -p ~/.local/bin
+mv ccs ~/.local/bin/
+chmod +x ~/.local/bin/ccs
+
+# 添加到 PATH (如果 ~/.local/bin 不在 PATH 中)
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+验证安装:
+```bash
+ccs version
+```
+
+### 版本更新与重新编译
+
+当项目有新版本发布时,可以通过以下步骤更新:
+
+```bash
+# 1. 进入项目目录
+cd cc-switch-cli
+
+# 2. 拉取最新代码
+git pull origin main
+
+# 3. 重新编译
+# Windows
+go build -o ccs.exe
+
+# macOS / Linux
+go build -o ccs
+
+# 4. 替换旧版本 (如果已配置环境变量)
+# Windows (PowerShell)
+move -Force ccs.exe $env:USERPROFILE\bin\ccs.exe
+
+# macOS / Linux
+sudo mv ccs /usr/local/bin/ccs  # 系统级
+# 或
+mv ccs ~/.local/bin/ccs  # 用户级
+
+# 5. 验证新版本
+ccs version
+```
 
 ## 使用方法
 
@@ -35,9 +138,9 @@ go build -o cc-switch
 启动交互式终端用户界面:
 
 ```bash
-cc-switch
+ccs
 # 或明确指定
-cc-switch ui
+ccs ui
 ```
 
 **TUI 功能特性:**
@@ -75,18 +178,18 @@ cc-switch ui
 
 ```bash
 # 由于默认启动TUI，使用其他命令查看列表
-cc-switch config show
+ccs config show
 ```
 
 #### 切换配置
 
 ```bash
-cc-switch <配置名称>
+ccs <配置名称>
 ```
 
 示例：
 ```bash
-cc-switch 88code
+ccs 88code
 ```
 
 输出：
@@ -101,7 +204,7 @@ cc-switch 88code
 #### 方法1：交互模式
 
 ```bash
-cc-switch config add my-config
+ccs config add my-config
 ```
 
 程序将提示您输入：
@@ -112,7 +215,7 @@ cc-switch config add my-config
 #### 方法2：命令行参数
 
 ```bash
-cc-switch config add my-config \
+ccs config add my-config \
   --apikey "sk-ant-xxxxx" \
   --base-url "https://api.example.com" \
   --category "custom"
@@ -128,13 +231,13 @@ cc-switch config add my-config \
 ### 删除配置
 
 ```bash
-cc-switch config delete <配置名称>
+ccs config delete <配置名称>
 ```
 
 添加`--force`或`-f`标志跳过确认：
 
 ```bash
-cc-switch config delete my-config --force
+ccs config delete my-config --force
 ```
 
 ## 配置文件
@@ -239,16 +342,16 @@ cc-switch-cli/
 
 ```bash
 # 为当前平台构建
-go build -o cc-switch
+go build -o ccs
 
 # 为Windows构建
-GOOS=windows GOARCH=amd64 go build -o cc-switch.exe
+GOOS=windows GOARCH=amd64 go build -o ccs.exe
 
 # 为macOS构建
-GOOS=darwin GOARCH=amd64 go build -o cc-switch-darwin
+GOOS=darwin GOARCH=amd64 go build -o ccs-darwin
 
 # 为Linux构建
-GOOS=linux GOARCH=amd64 go build -o cc-switch-linux
+GOOS=linux GOARCH=amd64 go build -o ccs-linux
 ```
 
 ### 运行测试

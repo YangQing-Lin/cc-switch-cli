@@ -21,12 +21,115 @@ Requires Go 1.25.1 or higher:
 ```bash
 git clone https://github.com/YangQing-Lin/cc-switch-cli.git
 cd cc-switch-cli
-go build -o cc-switch
+
+# Windows
+go build -o ccs.exe
+
+# macOS / Linux
+go build -o ccs
 ```
 
 ### Download Pre-built Binaries
 
 Download the appropriate pre-compiled binary for your operating system from the [Releases](https://github.com/YangQing-Lin/cc-switch-cli/releases) page.
+
+### Configure Environment Variables
+
+To use the `ccs` command from any directory, add it to your system's PATH:
+
+#### Windows
+
+**Method 1: Via PowerShell**
+```powershell
+# Move binary to user directory
+mkdir -Force $env:USERPROFILE\bin
+move ccs.exe $env:USERPROFILE\bin\
+
+# Add to PATH (current session)
+$env:Path += ";$env:USERPROFILE\bin"
+
+# Permanently add to PATH
+[Environment]::SetEnvironmentVariable("Path", $env:Path + ";$env:USERPROFILE\bin", "User")
+```
+
+**Method 2: Via System Settings**
+1. Copy `ccs.exe` to a directory, e.g., `C:\Program Files\ccs\`
+2. Right-click "This PC" → "Properties" → "Advanced system settings"
+3. Click "Environment Variables"
+4. In "User variables", find `Path` and click "Edit"
+5. Click "New" and add `C:\Program Files\ccs\`
+6. Click "OK" to save
+
+#### macOS
+
+```bash
+# Move binary to /usr/local/bin
+sudo mv ccs /usr/local/bin/
+
+# Or move to user directory
+mkdir -p ~/bin
+mv ccs ~/bin/
+
+# Add to PATH (if using ~/bin)
+echo 'export PATH="$HOME/bin:$PATH"' >> ~/.zshrc   # zsh
+echo 'export PATH="$HOME/bin:$PATH"' >> ~/.bashrc  # bash
+
+# Reload configuration
+source ~/.zshrc  # or source ~/.bashrc
+```
+
+#### Linux
+
+```bash
+# Method 1: System-wide installation (requires sudo)
+sudo mv ccs /usr/local/bin/
+sudo chmod +x /usr/local/bin/ccs
+
+# Method 2: User-level installation
+mkdir -p ~/.local/bin
+mv ccs ~/.local/bin/
+chmod +x ~/.local/bin/ccs
+
+# Add to PATH (if ~/.local/bin is not in PATH)
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+Verify installation:
+```bash
+ccs version
+```
+
+### Version Updates and Recompiling
+
+When a new version is released, update by following these steps:
+
+```bash
+# 1. Navigate to project directory
+cd cc-switch-cli
+
+# 2. Pull latest code
+git pull origin main
+
+# 3. Recompile
+# Windows
+go build -o ccs.exe
+
+# macOS / Linux
+go build -o ccs
+
+# 4. Replace old version (if environment variable is configured)
+# Windows (PowerShell)
+move -Force ccs.exe $env:USERPROFILE\bin\ccs.exe
+
+# macOS / Linux
+sudo mv ccs /usr/local/bin/ccs  # System-wide
+# or
+mv ccs ~/.local/bin/ccs  # User-level
+
+# 5. Verify new version
+ccs version
+```
 
 ## Usage
 
@@ -35,9 +138,9 @@ Download the appropriate pre-compiled binary for your operating system from the 
 Launch the interactive terminal user interface:
 
 ```bash
-cc-switch
+ccs
 # Or explicitly specify
-cc-switch ui
+ccs ui
 ```
 
 **TUI Features:**
@@ -74,12 +177,12 @@ In form editing mode:
 #### Switch Configuration
 
 ```bash
-cc-switch <configuration-name>
+ccs <configuration-name>
 ```
 
 Example:
 ```bash
-cc-switch 88code
+ccs 88code
 ```
 
 Output:
@@ -94,7 +197,7 @@ Output:
 #### Method 1: Interactive Mode
 
 ```bash
-cc-switch config add my-config
+ccs config add my-config
 ```
 
 The program will prompt you to enter:
@@ -105,7 +208,7 @@ The program will prompt you to enter:
 #### Method 2: Command-line Arguments
 
 ```bash
-cc-switch config add my-config \
+ccs config add my-config \
   --apikey "sk-ant-xxxxx" \
   --base-url "https://api.example.com" \
   --category "custom"
@@ -121,13 +224,13 @@ Supported category types:
 ### Delete Configuration
 
 ```bash
-cc-switch config delete <configuration-name>
+ccs config delete <configuration-name>
 ```
 
 Add `--force` or `-f` flag to skip confirmation:
 
 ```bash
-cc-switch config delete my-config --force
+ccs config delete my-config --force
 ```
 
 ## Configuration File
