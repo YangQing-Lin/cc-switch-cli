@@ -122,6 +122,20 @@
 - [x] 自动清理旧备份
 - [x] 备份验证
 
+### 12. Claude 插件集成 🆕
+
+> 基于 GUI v3.3.1+ 新增功能
+
+- [ ] Claude 插件配置管理（`~/.claude/config.json`）
+- [ ] 检测 Claude 插件配置状态
+- [ ] 读取 Claude 插件配置内容
+- [ ] 应用配置到 Claude 插件（写入固定 JSON）
+- [ ] 移除 Claude 插件配置（清除特定字段）
+- [ ] 检测配置是否已应用（验证 `primaryApiKey: "any"`）
+- [ ] 切换供应商时自动同步 Claude 插件
+- [ ] 第三方供应商自动应用配置
+- [ ] 官方供应商自动移除配置
+
 ## 命令行接口设计
 
 ### 主命令
@@ -158,6 +172,12 @@ cc-switch migrate                            # 执行迁移
 cc-switch validate                           # 验证配置
 cc-switch version                            # 版本信息
 cc-switch update                             # 检查更新
+
+# Claude 插件集成 (新增)
+cc-switch claude-plugin status               # 检查 Claude 插件配置状态
+cc-switch claude-plugin apply                # 应用配置到 Claude 插件
+cc-switch claude-plugin remove               # 移除 Claude 插件配置
+cc-switch claude-plugin check                # 检测配置是否已应用
 ```
 
 ## 数据结构对照
@@ -212,6 +232,10 @@ type MultiAppConfig struct {
 3. 自动更新检查
 4. 详细调试日志
 
+### P3 - 扩展功能（GUI 新增）
+1. Claude 插件集成（基于 GUI v3.3.1+ 新功能）
+2. 供应商预设支持 `apiKeyUrl` 字段
+
 ## 测试要求
 
 ### 单元测试
@@ -253,7 +277,8 @@ type MultiAppConfig struct {
 
 - 项目启动日期: 2025-10-01
 - 当前版本: v0.3.0
-- 目标版本: v1.0.0（与 GUI v3.3.1 功能对等）
+- 目标版本: v1.0.0（与 GUI v3.3.1+ 功能对等）
+- GUI 参考版本: v3.3.1+ (含 Claude 插件同步功能)
 
 ### 已完成功能
 
@@ -282,11 +307,18 @@ type MultiAppConfig struct {
 - 🔲 便携版支持（portable.ini 检测）
 - 🔲 详细调试日志（--debug 模式）
 
+#### P3 扩展功能（GUI v3.3.1+ 新增）
+- 🔲 Claude 插件配置管理（`~/.claude/config.json`）
+- 🔲 Claude 插件状态检测
+- 🔲 自动同步 Claude 插件配置
+- 🔲 供应商预设 `apiKeyUrl` 字段支持
+
 ### 项目里程碑
 - 2025-10-01: 项目启动，基础架构搭建
 - 2025-10-01 晚: P0 功能全部完成
 - 2025-10-02 早: P1 功能全部完成
 - 2025-10-02 午: P2 大部分功能完成（多语言、设置管理、版本控制等）
+- 2025-10-02: GUI 更新至 v3.3.1+，新增 Claude 插件同步功能（待实现）
 
 ### 最新完成的功能（v0.3.0）
 
@@ -338,3 +370,64 @@ type MultiAppConfig struct {
 - ✅ 所有新功能已通过功能测试
 - ✅ 跨平台兼容性验证（Windows/macOS/Linux）
 - ✅ 文件权限正确设置和验证
+
+## GUI 新增功能追踪（v3.3.1+）
+
+### Claude 插件同步功能详解
+
+GUI 项目在最新更新中新增了 Claude 插件配置同步功能，具体实现如下：
+
+#### 核心功能
+1. **配置文件管理**: 管理 `~/.claude/config.json` 文件
+2. **固定配置写入**: 第三方供应商时写入 `{"primaryApiKey": "any"}`
+3. **配置移除**: 官方供应商时移除 `primaryApiKey` 字段
+4. **状态检测**: 检测配置是否已应用（验证 `primaryApiKey: "any"`）
+5. **自动同步**: 切换供应商时自动同步配置
+
+#### 文件变更
+- `src-tauri/src/claude_plugin.rs`: 新增 Rust 模块，103 行代码
+- `src-tauri/src/commands.rs`: 新增 4 个 Tauri 命令
+- `src-tauri/src/lib.rs`: 注册新命令
+- `src/App.tsx`: 实现自动同步逻辑
+- `src/components/ProviderList.tsx`: 新增 UI 按钮和交互
+- `src/lib/tauri-api.ts`: 新增 API 封装
+- `src/i18n/locales/{en,zh}.json`: 新增国际化文本
+
+#### CLI 实现建议
+为了在 CLI 中实现相同功能，需要：
+
+1. **新建模块**: `internal/claude/plugin.go`
+   - `GetClaudeConfigPath()` - 获取配置文件路径
+   - `ReadClaudeConfig()` - 读取配置内容
+   - `WriteClaudeConfig()` - 写入固定配置
+   - `ClearClaudeConfig()` - 移除特定字段
+   - `IsClaudeConfigApplied()` - 检测配置状态
+
+2. **新增命令**: `cmd/claude_plugin.go`
+   - `claude-plugin status` - 显示配置状态
+   - `claude-plugin apply` - 应用配置
+   - `claude-plugin remove` - 移除配置
+   - `claude-plugin check` - 检测是否已应用
+
+3. **集成到切换流程**: 在 `switch` 命令中自动调用
+   - 第三方供应商 → 自动应用配置
+   - 官方供应商 → 自动移除配置
+
+4. **配置结构**:
+   ```json
+   {
+     "primaryApiKey": "any"
+   }
+   ```
+
+#### 实现优先级
+- 优先级: P3（扩展功能）
+- 依赖: 需要 JSON 文件读写和合并能力
+- 难度: 中等（类似 VS Code 集成）
+- 预计工作量: 2-3 小时
+
+#### 注意事项
+1. 需要保留配置文件中的其他字段
+2. 移除配置时只删除 `primaryApiKey` 字段，不是删除整个文件
+3. 配置文件可能不存在，需要先创建目录
+4. 权限设置建议 0600（与其他配置文件一致）
