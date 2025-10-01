@@ -19,10 +19,12 @@ func TestNewManager(t *testing.T) {
 		t.Fatal("NewManagerWithDir() returned nil")
 	}
 
-	// 验证配置文件已创建
-	configPath := filepath.Join(tmpDir, "config.json")
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		t.Error("配置文件未创建")
+	// 注意: Load() 现在不立即创建文件,首次添加配置时才创建
+	// 这是为了避免与 cc-switch UI 产生并发写入竞争
+	// 验证管理器可用即可
+	providers := manager.ListProvidersForApp("claude")
+	if providers == nil {
+		t.Error("ListProvidersForApp 应该返回空列表而不是 nil")
 	}
 }
 
@@ -64,7 +66,7 @@ func TestAddProvider(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := manager.AddProviderForApp(tt.appName, tt.provName, tt.apiToken, tt.baseURL, tt.category)
+			err := manager.AddProviderForApp(tt.appName, tt.provName, "", tt.apiToken, tt.baseURL, tt.category)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("AddProviderForApp() error = %v, wantErr %v", err, tt.wantErr)
 			}
@@ -99,9 +101,9 @@ func TestListProviders(t *testing.T) {
 	}
 
 	// 添加多个提供商
-	manager.AddProviderForApp("claude", "Provider 1", "token1", "", "test")
-	manager.AddProviderForApp("claude", "Provider 2", "token2", "", "test")
-	manager.AddProviderForApp("claude", "Provider 3", "token3", "", "test")
+	manager.AddProviderForApp("claude", "Provider 1", "", "token1", "", "test")
+	manager.AddProviderForApp("claude", "Provider 2", "", "token2", "", "test")
+	manager.AddProviderForApp("claude", "Provider 3", "", "token3", "", "test")
 
 	// 验证数量
 	providers = manager.ListProvidersForApp("claude")
@@ -118,7 +120,7 @@ func TestGetProvider(t *testing.T) {
 	}
 
 	// 添加提供商
-	err = manager.AddProviderForApp("claude", "Test Provider", "test-token", "", "test")
+	err = manager.AddProviderForApp("claude", "Test Provider", "", "test-token", "", "test")
 	if err != nil {
 		t.Fatalf("添加提供商失败: %v", err)
 	}
@@ -150,8 +152,8 @@ func TestDeleteProvider(t *testing.T) {
 	}
 
 	// 添加两个提供商
-	manager.AddProviderForApp("claude", "Provider 1", "token1", "", "test")
-	manager.AddProviderForApp("claude", "To Delete", "token2", "", "test")
+	manager.AddProviderForApp("claude", "Provider 1", "", "token1", "", "test")
+	manager.AddProviderForApp("claude", "To Delete", "", "token2", "", "test")
 
 	// 验证提供商存在
 	providers := manager.ListProvidersForApp("claude")
@@ -186,10 +188,10 @@ func TestUpdateProvider(t *testing.T) {
 	}
 
 	// 添加提供商
-	manager.AddProviderForApp("claude", "Original", "old-token", "", "test")
+	manager.AddProviderForApp("claude", "Original", "", "old-token", "", "test")
 
 	// 更新提供商
-	err = manager.UpdateProviderForApp("claude", "Original", "New Name", "new-token", "", "updated")
+	err = manager.UpdateProviderForApp("claude", "Original", "New Name", "", "new-token", "", "updated")
 	if err != nil {
 		t.Errorf("UpdateProviderForApp() error = %v", err)
 	}
@@ -220,7 +222,7 @@ func TestConfigPersistence(t *testing.T) {
 		t.Fatalf("创建管理器1失败: %v", err)
 	}
 
-	manager1.AddProviderForApp("claude", "Persistent", "token123", "", "test")
+	manager1.AddProviderForApp("claude", "Persistent", "", "token123", "", "test")
 
 	// 创建第二个管理器（模拟重启）
 	manager2, err := NewManagerWithDir(tmpDir)
@@ -249,7 +251,7 @@ func TestConfigFileFormat(t *testing.T) {
 	}
 
 	// 添加提供商
-	manager.AddProviderForApp("claude", "Test", "token", "", "test")
+	manager.AddProviderForApp("claude", "Test", "", "token", "", "test")
 
 	// 读取配置文件
 	configPath := filepath.Join(tmpDir, "config.json")
@@ -292,8 +294,8 @@ func TestProviderID(t *testing.T) {
 	}
 
 	// 添加多个提供商
-	manager.AddProviderForApp("claude", "Provider 1", "token1", "", "test")
-	manager.AddProviderForApp("claude", "Provider 2", "token2", "", "test")
+	manager.AddProviderForApp("claude", "Provider 1", "", "token1", "", "test")
+	manager.AddProviderForApp("claude", "Provider 2", "", "token2", "", "test")
 
 	// 获取提供商
 	p1, _ := manager.GetProviderForApp("claude", "Provider 1")
@@ -318,9 +320,9 @@ func TestMultiAppIsolation(t *testing.T) {
 	}
 
 	// 为不同应用添加同名提供商
-	manager.AddProviderForApp("claude", "Provider 1", "claude-token-1", "", "test")
-	manager.AddProviderForApp("claude", "Same Name", "claude-token", "", "test")
-	manager.AddProviderForApp("codex", "Same Name", "codex-token", "", "test")
+	manager.AddProviderForApp("claude", "Provider 1", "", "claude-token-1", "", "test")
+	manager.AddProviderForApp("claude", "Same Name", "", "claude-token", "", "test")
+	manager.AddProviderForApp("codex", "Same Name", "", "codex-token", "", "test")
 
 	// 验证它们是独立的
 	claudeProvider, err := manager.GetProviderForApp("claude", "Same Name")

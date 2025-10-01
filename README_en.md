@@ -54,7 +54,8 @@ cc-switch ui
 
 | Shortcut | Function |
 |----------|----------|
-| `↑` / `↓` | Move cursor up/down (select configuration) |
+| `↑` / `k` | Move cursor up |
+| `↓` / `j` | Move cursor down |
 | `Enter` | Switch to selected configuration |
 | `a` | Add new configuration |
 | `e` | Edit selected configuration |
