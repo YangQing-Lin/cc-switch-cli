@@ -16,12 +16,13 @@ var (
 	apiKey   string
 	baseURL  string
 	category string
+	appName  string
 )
 
 var addCmd = &cobra.Command{
 	Use:   "add <配置名称>",
 	Short: "添加新的配置",
-	Long:  "添加一个新的 Claude 中转站配置，可以通过命令行参数或交互式输入提供配置信息",
+	Long:  "添加一个新的 Claude 或 Codex 配置，可以通过命令行参数或交互式输入提供配置信息",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		configName := args[0]
@@ -59,7 +60,13 @@ var addCmd = &cobra.Command{
 			return fmt.Errorf("初始化配置管理器失败: %w", err)
 		}
 
-		if err := manager.AddProvider(
+		// 如果没有指定 app，默认为 claude
+		if appName == "" {
+			appName = "claude"
+		}
+
+		if err := manager.AddProviderForApp(
+			appName,
 			configName,
 			strings.TrimSpace(apiKey),
 			strings.TrimSpace(baseURL),
@@ -68,7 +75,7 @@ var addCmd = &cobra.Command{
 			return fmt.Errorf("添加配置失败: %w", err)
 		}
 
-		fmt.Printf("✓ 配置 '%s' 已添加成功\n", configName)
+		fmt.Printf("✓ 配置 '%s' 已添加到 %s 成功\n", configName, appName)
 		return nil
 	},
 }
@@ -77,6 +84,7 @@ func init() {
 	addCmd.Flags().StringVar(&apiKey, "apikey", "", "API Token")
 	addCmd.Flags().StringVar(&baseURL, "base-url", "", "Base URL")
 	addCmd.Flags().StringVar(&category, "category", "custom", "Provider category (official/cn_official/aggregator/third_party/custom)")
+	addCmd.Flags().StringVar(&appName, "app", "claude", "Application (claude/codex)")
 }
 
 // promptSecret 提示用户输入敏感信息（隐藏输入）

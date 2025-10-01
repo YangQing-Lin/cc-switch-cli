@@ -98,3 +98,18 @@ func (c *ClaudeSettings) MarshalJSON() ([]byte, error) {
 
 	return json.Marshal(result)
 }
+
+// CodexConfig Codex config.yaml 文件结构
+type CodexConfig struct {
+	BaseURL     string `yaml:"base_url" json:"base_url"`
+	APIKey      string `yaml:"api_key" json:"api_key"`
+	ModelName   string `yaml:"model_name" json:"model_name"`
+	Temperature string `yaml:"temperature,omitempty" json:"temperature,omitempty"`
+	MaxTokens   string `yaml:"max_tokens,omitempty" json:"max_tokens,omitempty"`
+}
+
+// CodexApiJson Codex api.json 文件结构
+type CodexApiJson struct {
+	BaseURL string `json:"baseURL"`
+	APIKey  string `json:"apiKey"`
+}

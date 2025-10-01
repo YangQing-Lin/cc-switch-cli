@@ -12,12 +12,14 @@ import (
 
 	"github.com/YangQing-Lin/cc-switch-cli/internal/utils"
 	"github.com/google/uuid"
+	"gopkg.in/yaml.v3"
 )
 
 // Manager 配置管理器（对应 cc-switch 的 AppState）
 type Manager struct {
 	config     *MultiAppConfig
 	configPath string
+	customDir  string // 自定义配置目录
 }
 
 // NewManager 创建配置管理器
@@ -29,6 +31,31 @@ func NewManager() (*Manager, error) {
 
 	manager := &Manager{
 		configPath: configPath,
+	}
+
+	if err := manager.Load(); err != nil {
+		return nil, err
+	}
+
+	return manager, nil
+}
+
+// NewManagerWithDir 创建使用自定义目录的配置管理器
+func NewManagerWithDir(customDir string) (*Manager, error) {
+	// 验证目录
+	if customDir == "" {
+		return NewManager() // 使用默认目录
+	}
+
+	// 确保目录存在
+	if err := os.MkdirAll(customDir, 0755); err != nil {
+		return nil, fmt.Errorf("创建自定义目录失败: %w", err)
+	}
+
+	configPath := filepath.Join(customDir, "config.json")
+	manager := &Manager{
+		configPath: configPath,
+		customDir:  customDir,
 	}
 
 	if err := manager.Load(); err != nil {
@@ -143,10 +170,17 @@ func (m *Manager) AddProviderForApp(appName, name, apiToken, baseURL, category s
 			},
 		}
 	case "codex":
-		// Codex 配置格式
+		// Codex 配置格式（双文件结构）
 		settingsConfig = map[string]interface{}{
-			"auth": apiToken,
-			"base_url": baseURL,
+			"config": map[string]interface{}{
+				"base_url": baseURL,
+				"api_key": apiToken,
+				"model_name": "claude-3-5-sonnet-20241022",
+			},
+			"api": map[string]interface{}{
+				"baseURL": baseURL,
+				"apiKey": apiToken,
+			},
 		}
 	default:
 		return fmt.Errorf("不支持的应用: %s", appName)
@@ -438,7 +472,67 @@ func (m *Manager) backfillClaudeConfig() error {
 
 // backfillCodexConfig 回填 Codex 的 live 配置
 func (m *Manager) backfillCodexConfig() error {
-	// TODO: 实现 Codex 配置回填
+	app := m.config.Apps["codex"]
+	if app.Current == "" {
+		return nil
+	}
+
+	// Codex 使用两个配置文件
+	configPath, err := GetCodexConfigPath()
+	if err != nil || !utils.FileExists(configPath) {
+		return nil // 文件不存在，跳过回填
+	}
+
+	apiJsonPath, err := GetCodexApiJsonPath()
+	if err != nil || !utils.FileExists(apiJsonPath) {
+		return nil // 文件不存在，跳过回填
+	}
+
+	// 读取 config.yaml
+	configData, err := os.ReadFile(configPath)
+	if err != nil {
+		return err
+	}
+
+	var liveConfig CodexConfig
+	if err := yaml.Unmarshal(configData, &liveConfig); err != nil {
+		return err
+	}
+
+	// 读取 api.json
+	apiData, err := os.ReadFile(apiJsonPath)
+	if err != nil {
+		return err
+	}
+
+	var liveApiJson CodexApiJson
+	if err := json.Unmarshal(apiData, &liveApiJson); err != nil {
+		return err
+	}
+
+	// 回填到当前供应商
+	if currentProvider, ok := app.Providers[app.Current]; ok {
+		if currentProvider.SettingsConfig == nil {
+			currentProvider.SettingsConfig = make(map[string]interface{})
+		}
+
+		// 保存配置到 settingsConfig
+		currentProvider.SettingsConfig["config"] = map[string]interface{}{
+			"base_url":     liveConfig.BaseURL,
+			"api_key":      liveConfig.APIKey,
+			"model_name":   liveConfig.ModelName,
+			"temperature":  liveConfig.Temperature,
+			"max_tokens":   liveConfig.MaxTokens,
+		}
+		currentProvider.SettingsConfig["api"] = map[string]interface{}{
+			"baseURL": liveApiJson.BaseURL,
+			"apiKey":  liveApiJson.APIKey,
+		}
+
+		app.Providers[app.Current] = currentProvider
+		m.config.Apps["codex"] = app
+	}
+
 	return nil
 }
 
@@ -532,10 +626,142 @@ func (m *Manager) writeClaudeConfig(provider *Provider) error {
 	return nil
 }
 
-// writeCodexConfig 写入 Codex 配置
+// writeCodexConfig 写入 Codex 配置（双文件事务机制）
 func (m *Manager) writeCodexConfig(provider *Provider) error {
-	// TODO: 实现 Codex 配置写入（需要双文件事务）
-	return fmt.Errorf("Codex 支持尚未实现")
+	configPath, err := GetCodexConfigPath()
+	if err != nil {
+		return fmt.Errorf("获取 Codex config 路径失败: %w", err)
+	}
+
+	apiJsonPath, err := GetCodexApiJsonPath()
+	if err != nil {
+		return fmt.Errorf("获取 Codex api.json 路径失败: %w", err)
+	}
+
+	// 确保目录存在
+	dir := filepath.Dir(configPath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("创建目录失败: %w", err)
+	}
+
+	// 创建回滚备份（双文件）
+	var configRollbackPath, apiRollbackPath string
+	needRollback := false
+
+	// 备份 config.yaml
+	if utils.FileExists(configPath) {
+		configRollbackPath = configPath + ".rollback"
+		if err := utils.CopyFile(configPath, configRollbackPath); err != nil {
+			return fmt.Errorf("创建 config.yaml 回滚备份失败: %w", err)
+		}
+		needRollback = true
+	}
+
+	// 备份 api.json
+	if utils.FileExists(apiJsonPath) {
+		apiRollbackPath = apiJsonPath + ".rollback"
+		if err := utils.CopyFile(apiJsonPath, apiRollbackPath); err != nil {
+			// 清理第一个备份
+			if configRollbackPath != "" {
+				os.Remove(configRollbackPath)
+			}
+			return fmt.Errorf("创建 api.json 回滚备份失败: %w", err)
+		}
+	}
+
+	// 清理函数
+	defer func() {
+		if !needRollback {
+			// 成功时清理备份文件
+			if configRollbackPath != "" {
+				os.Remove(configRollbackPath)
+			}
+			if apiRollbackPath != "" {
+				os.Remove(apiRollbackPath)
+			}
+		}
+	}()
+
+	// 准备 config.yaml 数据
+	configData := &CodexConfig{
+		ModelName: "claude-3-5-sonnet-20241022",  // 默认模型
+	}
+
+	if configMap, ok := provider.SettingsConfig["config"].(map[string]interface{}); ok {
+		if baseURL, ok := configMap["base_url"].(string); ok {
+			configData.BaseURL = baseURL
+		}
+		if apiKey, ok := configMap["api_key"].(string); ok {
+			configData.APIKey = apiKey
+		}
+		if modelName, ok := configMap["model_name"].(string); ok && modelName != "" {
+			configData.ModelName = modelName
+		}
+		if temperature, ok := configMap["temperature"].(string); ok {
+			configData.Temperature = temperature
+		}
+		if maxTokens, ok := configMap["max_tokens"].(string); ok {
+			configData.MaxTokens = maxTokens
+		}
+	}
+
+	// 准备 api.json 数据
+	apiData := &CodexApiJson{}
+
+	if apiMap, ok := provider.SettingsConfig["api"].(map[string]interface{}); ok {
+		if baseURL, ok := apiMap["baseURL"].(string); ok {
+			apiData.BaseURL = baseURL
+		}
+		if apiKey, ok := apiMap["apiKey"].(string); ok {
+			apiData.APIKey = apiKey
+		}
+	} else {
+		// 如果没有 api 部分，使用 config 部分的值
+		apiData.BaseURL = configData.BaseURL
+		apiData.APIKey = configData.APIKey
+	}
+
+	// 双文件事务写入
+	// 第一阶段：写入 config.yaml
+	configYamlData, err := yaml.Marshal(configData)
+	if err != nil {
+		return fmt.Errorf("序列化 config.yaml 失败: %w", err)
+	}
+
+	if err := utils.AtomicWriteFile(configPath, configYamlData, 0644); err != nil {
+		// 尝试恢复
+		if needRollback && configRollbackPath != "" {
+			utils.CopyFile(configRollbackPath, configPath)
+		}
+		return fmt.Errorf("写入 config.yaml 失败: %w", err)
+	}
+
+	// 第二阶段：写入 api.json
+	apiJsonData, err := json.MarshalIndent(apiData, "", "  ")
+	if err != nil {
+		// 恢复第一个文件
+		if needRollback && configRollbackPath != "" {
+			utils.CopyFile(configRollbackPath, configPath)
+		}
+		return fmt.Errorf("序列化 api.json 失败: %w", err)
+	}
+
+	if err := utils.AtomicWriteFile(apiJsonPath, apiJsonData, 0644); err != nil {
+		// 恢复两个文件
+		if needRollback {
+			if configRollbackPath != "" {
+				utils.CopyFile(configRollbackPath, configPath)
+			}
+			if apiRollbackPath != "" {
+				utils.CopyFile(apiRollbackPath, apiJsonPath)
+			}
+		}
+		return fmt.Errorf("写入 api.json 失败: %w", err)
+	}
+
+	// 成功写入，标记不需要回滚
+	needRollback = false
+	return nil
 }
 
 // UpdateProvider 更新供应商配置（默认为 Claude）
@@ -597,8 +823,22 @@ func (m *Manager) UpdateProviderForApp(appName, oldName, newName, apiToken, base
 		if targetProvider.SettingsConfig == nil {
 			targetProvider.SettingsConfig = make(map[string]interface{})
 		}
-		targetProvider.SettingsConfig["auth"] = apiToken
-		targetProvider.SettingsConfig["base_url"] = baseURL
+		// 更新 config 部分
+		if _, ok := targetProvider.SettingsConfig["config"]; !ok {
+			targetProvider.SettingsConfig["config"] = make(map[string]interface{})
+		}
+		if configMap, ok := targetProvider.SettingsConfig["config"].(map[string]interface{}); ok {
+			configMap["api_key"] = apiToken
+			configMap["base_url"] = baseURL
+		}
+		// 更新 api 部分
+		if _, ok := targetProvider.SettingsConfig["api"]; !ok {
+			targetProvider.SettingsConfig["api"] = make(map[string]interface{})
+		}
+		if apiMap, ok := targetProvider.SettingsConfig["api"].(map[string]interface{}); ok {
+			apiMap["apiKey"] = apiToken
+			apiMap["baseURL"] = baseURL
+		}
 	}
 
 	// 保存更新后的配置
@@ -696,16 +936,78 @@ func GetClaudeSettingsPath() (string, error) {
 	return settingsPath, nil
 }
 
+// GetClaudeSettingsPathWithDir 获取使用自定义目录的 Claude 设置文件路径
+func (m *Manager) GetClaudeSettingsPathWithDir() (string, error) {
+	if m.customDir == "" {
+		return GetClaudeSettingsPath()
+	}
+
+	dir := filepath.Join(m.customDir, ".claude")
+	settingsPath := filepath.Join(dir, "settings.json")
+	return settingsPath, nil
+}
+
+// GetCodexConfigPath 获取 Codex config.yaml 文件路径
+func GetCodexConfigPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("获取用户主目录失败: %w", err)
+	}
+	return filepath.Join(home, ".codex", "config.yaml"), nil
+}
+
+// GetCodexApiJsonPath 获取 Codex api.json 文件路径
+func GetCodexApiJsonPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("获取用户主目录失败: %w", err)
+	}
+	return filepath.Join(home, ".codex", "api.json"), nil
+}
+
+// GetCodexConfigPathWithDir 获取使用自定义目录的 Codex config.yaml 文件路径
+func (m *Manager) GetCodexConfigPathWithDir() (string, error) {
+	if m.customDir == "" {
+		return GetCodexConfigPath()
+	}
+	return filepath.Join(m.customDir, ".codex", "config.yaml"), nil
+}
+
+// GetCodexApiJsonPathWithDir 获取使用自定义目录的 Codex api.json 文件路径
+func (m *Manager) GetCodexApiJsonPathWithDir() (string, error) {
+	if m.customDir == "" {
+		return GetCodexApiJsonPath()
+	}
+	return filepath.Join(m.customDir, ".codex", "api.json"), nil
+}
+
 // ExtractTokenFromProvider 从 Provider 提取 API Token
 func ExtractTokenFromProvider(p *Provider) string {
 	if p == nil {
 		return ""
 	}
+
+	// 尝试 Claude 格式
 	if envMap, ok := p.SettingsConfig["env"].(map[string]interface{}); ok {
 		if token, ok := envMap["ANTHROPIC_AUTH_TOKEN"].(string); ok {
 			return token
 		}
 	}
+
+	// 尝试 Codex 格式
+	if configMap, ok := p.SettingsConfig["config"].(map[string]interface{}); ok {
+		if token, ok := configMap["api_key"].(string); ok {
+			return token
+		}
+	}
+
+	// 尝试 Codex api 格式
+	if apiMap, ok := p.SettingsConfig["api"].(map[string]interface{}); ok {
+		if token, ok := apiMap["apiKey"].(string); ok {
+			return token
+		}
+	}
+
 	return ""
 }
 
@@ -714,10 +1016,27 @@ func ExtractBaseURLFromProvider(p *Provider) string {
 	if p == nil {
 		return ""
 	}
+
+	// 尝试 Claude 格式
 	if envMap, ok := p.SettingsConfig["env"].(map[string]interface{}); ok {
 		if baseURL, ok := envMap["ANTHROPIC_BASE_URL"].(string); ok {
 			return baseURL
 		}
 	}
+
+	// 尝试 Codex 格式
+	if configMap, ok := p.SettingsConfig["config"].(map[string]interface{}); ok {
+		if baseURL, ok := configMap["base_url"].(string); ok {
+			return baseURL
+		}
+	}
+
+	// 尝试 Codex api 格式
+	if apiMap, ok := p.SettingsConfig["api"].(map[string]interface{}); ok {
+		if baseURL, ok := apiMap["baseURL"].(string); ok {
+			return baseURL
+		}
+	}
+
 	return ""
 }

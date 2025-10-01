@@ -10,6 +10,7 @@ import (
 	"github.com/YangQing-Lin/cc-switch-cli/internal/utils"
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
 )
 
 // importCmd represents the import command
@@ -125,8 +126,88 @@ func importClaudeLive(manager *config.Manager, name string) error {
 
 // importCodexLive 导入 Codex 的 live 配置
 func importCodexLive(manager *config.Manager, name string) error {
-	// TODO: 实现 Codex 导入
-	return fmt.Errorf("Codex 导入尚未实现")
+	configPath, err := config.GetCodexConfigPath()
+	if err != nil {
+		return fmt.Errorf("获取 Codex config 路径失败: %w", err)
+	}
+
+	apiJsonPath, err := config.GetCodexApiJsonPath()
+	if err != nil {
+		return fmt.Errorf("获取 Codex api.json 路径失败: %w", err)
+	}
+
+	// 检查两个文件是否都存在
+	if !utils.FileExists(configPath) && !utils.FileExists(apiJsonPath) {
+		return fmt.Errorf("Codex 配置文件不存在")
+	}
+
+	// 读取 config.yaml
+	var configData config.CodexConfig
+	if utils.FileExists(configPath) {
+		data, err := os.ReadFile(configPath)
+		if err != nil {
+			return fmt.Errorf("读取 config.yaml 失败: %w", err)
+		}
+		if err := yaml.Unmarshal(data, &configData); err != nil {
+			return fmt.Errorf("解析 config.yaml 失败: %w", err)
+		}
+	}
+
+	// 读取 api.json
+	var apiData config.CodexApiJson
+	if utils.FileExists(apiJsonPath) {
+		if err := utils.ReadJSONFile(apiJsonPath, &apiData); err != nil {
+			return fmt.Errorf("读取 api.json 失败: %w", err)
+		}
+	}
+
+	// 合并配置（api.json 优先）
+	apiKey := configData.APIKey
+	if apiData.APIKey != "" {
+		apiKey = apiData.APIKey
+	}
+	baseURL := configData.BaseURL
+	if apiData.BaseURL != "" {
+		baseURL = apiData.BaseURL
+	}
+
+	// 验证配置
+	if apiKey == "" {
+		return fmt.Errorf("Codex 配置缺少 API Key")
+	}
+
+	// 默认名称
+	if name == "" {
+		name = "imported-" + time.Now().Format("20060102-150405")
+	}
+
+	// 检查是否已存在同样的配置
+	providers := manager.ListProvidersForApp("codex")
+	for _, p := range providers {
+		token := config.ExtractTokenFromProvider(&p)
+		if token == apiKey {
+			return fmt.Errorf("相同的 API Key 已存在于配置 '%s' 中", p.Name)
+		}
+	}
+
+	// 设置默认值
+	if baseURL == "" {
+		baseURL = "https://api.anthropic.com"
+	}
+
+	// 添加配置
+	if err := manager.AddProviderForApp("codex", name, apiKey, baseURL, "imported"); err != nil {
+		return fmt.Errorf("添加 Codex 配置失败: %w", err)
+	}
+
+	fmt.Printf("成功导入 Codex 配置 '%s':\n", name)
+	fmt.Printf("  Token: %s\n", config.MaskToken(apiKey))
+	fmt.Printf("  URL: %s\n", baseURL)
+	if configData.ModelName != "" {
+		fmt.Printf("  Model: %s\n", configData.ModelName)
+	}
+
+	return nil
 }
 
 // importFromFile 从文件导入配置
