@@ -215,10 +215,20 @@ type MultiAppConfig struct {
 ## 测试要求
 
 ### 单元测试
-- [ ] 配置文件读写测试
-- [ ] 原子操作测试
-- [ ] 配置验证测试
-- [ ] 路径解析测试
+- [x] 配置文件读写测试 (internal/utils)
+- [x] 原子操作测试 (internal/utils)
+- [x] 配置验证测试 (internal/settings, internal/i18n)
+- [x] 路径解析测试 (internal/vscode)
+- [x] 文件工具函数测试 (internal/utils)
+- [x] 设置管理测试 (internal/settings)
+- [x] 国际化测试 (internal/i18n)
+- [x] VS Code集成测试 (internal/vscode)
+
+### 测试覆盖率
+- internal/utils: 69.7%
+- internal/settings: 82.4%
+- internal/i18n: 60.0%
+- internal/vscode: 25.0%
 
 ### 集成测试
 - [ ] 完整切换流程测试
