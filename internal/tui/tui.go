@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -130,7 +131,7 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			provider := m.providers[m.cursor]
 			current := m.manager.GetCurrentProvider()
 			if current != nil && provider.ID == current.ID {
-				m.err = fmt.Errorf(i18n.T("error.cannot_delete_current"))
+				m.err = errors.New(i18n.T("error.cannot_delete_current"))
 				m.message = ""
 			} else {
 				m.mode = "delete"
@@ -188,15 +189,15 @@ func (m *Model) submitForm() {
 	baseURL := m.inputs[3].Value()
 
 	if name == "" {
-		m.err = fmt.Errorf(i18n.T("error.name_required"))
+		m.err = errors.New(i18n.T("error.name_required"))
 		return
 	}
 	if token == "" {
-		m.err = fmt.Errorf(i18n.T("error.token_required"))
+		m.err = errors.New(i18n.T("error.token_required"))
 		return
 	}
 	if baseURL == "" {
-		m.err = fmt.Errorf(i18n.T("error.base_url_required"))
+		m.err = errors.New(i18n.T("error.base_url_required"))
 		return
 	}
 
