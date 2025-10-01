@@ -231,10 +231,12 @@ type MultiAppConfig struct {
 - internal/vscode: 25.0%
 
 ### 集成测试
-- [ ] 完整切换流程测试
-- [ ] 配置迁移测试
-- [ ] 回滚机制测试
-- [ ] 跨平台兼容性测试
+- [x] 基本 Provider 操作测试 (test/integration/basic_test.go)
+- [x] Provider 持久化测试
+- [x] 多应用支持测试
+- [x] 配置文件结构测试
+- [x] Provider 验证测试
+- [x] 并发访问测试
 
 ## 注意事项
 

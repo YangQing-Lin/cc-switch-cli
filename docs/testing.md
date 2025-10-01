@@ -242,21 +242,88 @@ func TestExample(t *testing.T) {
 | internal/vscode | 25.0% | 50% |
 | **平均** | **59.3%** | **70%** |
 
+## 集成测试
+
+### 已实现的集成测试
+
+**测试文件: `test/integration/basic_test.go`**
+
+集成测试验证了多个组件协同工作的场景：
+
+#### 1. TestBasicProviderOperations
+测试基本的 Provider 操作流程：
+- 添加 Provider
+- 列出 Providers
+- 获取指定 Provider
+
+#### 2. TestProviderPersistence
+测试配置持久化：
+- 创建配置管理器
+- 添加 Provider
+- 重新创建管理器（模拟重启）
+- 验证 Provider 仍然存在
+
+#### 3. TestMultiAppSupport
+测试多应用支持：
+- 为 Claude 和 Codex 分别添加 Provider
+- 验证两个应用的 Provider 相互独立
+- 验证配置正确保存
+
+#### 4. TestConfigFileStructure
+测试配置文件结构：
+- 创建 Provider
+- 读取并解析配置文件
+- 验证 v2 配置格式正确
+- 验证 Apps 结构完整
+
+#### 5. TestProviderValidation
+测试 Provider 验证：
+- 测试空名称 Provider
+- 测试空 token Provider
+- 记录当前验证行为
+
+#### 6. TestConcurrentAccess
+测试并发访问安全性：
+- 快速连续添加多个 Provider
+- 验证所有 Provider 都正确保存
+- 重新加载验证数据完整性
+
+### 运行集成测试
+
+```bash
+# 运行所有集成测试
+go test -v ./test/integration/...
+
+# 运行特定集成测试
+go test -v ./test/integration/ -run TestBasicProviderOperations
+
+# 带超时运行
+go test -v ./test/integration/... -timeout=60s
+```
+
+### 集成测试覆盖的功能
+
+✅ Provider CRUD 操作
+✅ 配置持久化
+✅ 多应用支持
+✅ 配置文件格式验证
+✅ 并发访问保护
+✅ 数据完整性验证
+
 ## 待完成的测试
 
 ### 单元测试
 
 - [ ] internal/config 包完整测试
-  - Provider CRUD 操作
-  - 配置验证
-  - 切换流程
+  - 更多边界情况测试
+  - 错误处理测试
 
-### 集成测试
+### 高级集成测试
 
-- [ ] 完整切换流程测试
-- [ ] 配置迁移测试
-- [ ] 回滚机制测试
-- [ ] 跨平台兼容性测试
+- [ ] 完整切换流程测试（包含实际文件写入）
+- [ ] 配置迁移测试（v1 到 v2）
+- [ ] 回滚机制测试（切换失败恢复）
+- [ ] 跨平台路径处理测试
 
 ## 持续集成
 
