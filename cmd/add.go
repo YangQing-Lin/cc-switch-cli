@@ -68,6 +68,7 @@ var addCmd = &cobra.Command{
 		if err := manager.AddProviderForApp(
 			appName,
 			configName,
+			"", // websiteURL - 命令行暂不支持
 			strings.TrimSpace(apiKey),
 			strings.TrimSpace(baseURL),
 			category,

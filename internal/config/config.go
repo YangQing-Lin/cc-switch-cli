@@ -136,11 +136,16 @@ func (m *Manager) Save() error {
 
 // AddProvider 添加新的供应商配置（默认为 Claude）
 func (m *Manager) AddProvider(name, apiToken, baseURL, category string) error {
-	return m.AddProviderForApp("claude", name, apiToken, baseURL, category)
+	return m.AddProviderWithWebsite("claude", name, "", apiToken, baseURL, category)
+}
+
+// AddProviderWithWebsite 添加供应商配置（支持网站URL）
+func (m *Manager) AddProviderWithWebsite(appName, name, websiteURL, apiToken, baseURL, category string) error {
+	return m.AddProviderForApp(appName, name, websiteURL, apiToken, baseURL, category)
 }
 
 // AddProviderForApp 为指定应用添加供应商配置
-func (m *Manager) AddProviderForApp(appName, name, apiToken, baseURL, category string) error {
+func (m *Manager) AddProviderForApp(appName, name, websiteURL, apiToken, baseURL, category string) error {
 	// 确保应用存在
 	if _, exists := m.config.Apps[appName]; !exists {
 		m.config.Apps[appName] = ProviderManager{
@@ -194,7 +199,7 @@ func (m *Manager) AddProviderForApp(appName, name, apiToken, baseURL, category s
 		ID:             id,
 		Name:           name,
 		SettingsConfig: settingsConfig,
-		WebsiteURL:     "",
+		WebsiteURL:     websiteURL,
 		Category:       category,
 		CreatedAt:      time.Now().UnixMilli(),
 	}
@@ -775,11 +780,16 @@ func (m *Manager) writeCodexConfig(provider *Provider) error {
 
 // UpdateProvider 更新供应商配置（默认为 Claude）
 func (m *Manager) UpdateProvider(oldName, newName, apiToken, baseURL, category string) error {
-	return m.UpdateProviderForApp("claude", oldName, newName, apiToken, baseURL, category)
+	return m.UpdateProviderWithWebsite("claude", oldName, newName, "", apiToken, baseURL, category)
+}
+
+// UpdateProviderWithWebsite 更新供应商配置（支持网站URL）
+func (m *Manager) UpdateProviderWithWebsite(appName, oldName, newName, websiteURL, apiToken, baseURL, category string) error {
+	return m.UpdateProviderForApp(appName, oldName, newName, websiteURL, apiToken, baseURL, category)
 }
 
 // UpdateProviderForApp 更新指定应用的供应商配置
-func (m *Manager) UpdateProviderForApp(appName, oldName, newName, apiToken, baseURL, category string) error {
+func (m *Manager) UpdateProviderForApp(appName, oldName, newName, websiteURL, apiToken, baseURL, category string) error {
 	app, exists := m.config.Apps[appName]
 	if !exists {
 		return fmt.Errorf("应用 '%s' 不存在", appName)
@@ -811,6 +821,9 @@ func (m *Manager) UpdateProviderForApp(appName, oldName, newName, apiToken, base
 
 	// 更新配置
 	targetProvider.Name = newName
+	if websiteURL != "" {
+		targetProvider.WebsiteURL = websiteURL
+	}
 	if category != "" {
 		targetProvider.Category = category
 	}

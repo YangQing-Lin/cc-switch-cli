@@ -95,7 +95,7 @@ var updateCmd = &cobra.Command{
 		}
 
 		// 更新配置
-		if err := manager.UpdateProviderForApp(appName, oldName, newName, apiKey, baseURL, category); err != nil {
+		if err := manager.UpdateProviderForApp(appName, oldName, newName, "", apiKey, baseURL, category); err != nil {
 			return err
 		}
 

@@ -183,7 +183,7 @@ func (m Model) handleFormKeys(msg tea.KeyMsg) (bool, tea.Model, tea.Cmd) {
 
 func (m *Model) submitForm() {
 	name := m.inputs[0].Value()
-	_  = m.inputs[1].Value() // websiteURL - 暂不使用
+	websiteURL := m.inputs[1].Value()
 	token := m.inputs[2].Value()
 	baseURL := m.inputs[3].Value()
 
@@ -203,10 +203,10 @@ func (m *Model) submitForm() {
 	var err error
 	if m.mode == "edit" {
 		// Update provider
-		err = m.manager.UpdateProvider(m.editName, name, token, baseURL, "custom")
+		err = m.manager.UpdateProviderWithWebsite("claude", m.editName, name, websiteURL, token, baseURL, "custom")
 	} else {
 		// Add provider
-		err = m.manager.AddProvider(name, token, baseURL, "custom")
+		err = m.manager.AddProviderWithWebsite("claude", name, websiteURL, token, baseURL, "custom")
 	}
 
 	if err != nil {
