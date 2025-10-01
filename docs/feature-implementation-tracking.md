@@ -223,12 +223,15 @@ type MultiAppConfig struct {
 - [x] 设置管理测试 (internal/settings)
 - [x] 国际化测试 (internal/i18n)
 - [x] VS Code集成测试 (internal/vscode)
+- [x] Provider CRUD 测试 (internal/config)
 
 ### 测试覆盖率
 - internal/utils: 69.7%
 - internal/settings: 82.4%
 - internal/i18n: 60.0%
+- internal/config: 32.1% ⭐ 新增
 - internal/vscode: 25.0%
+- **平均覆盖率**: 53.8%
 
 ### 集成测试
 - [x] 基本 Provider 操作测试 (test/integration/basic_test.go)

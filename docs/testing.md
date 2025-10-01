@@ -163,7 +163,33 @@ cc-switch-cli/
 - 多编辑器支持
 - 进程检测
 
-### 5. 测试工具包
+### 5. internal/config 包测试
+
+**覆盖率: 32.1%**
+
+测试文件: `internal/config/config_test.go`
+
+- ✅ `TestNewManager` - 测试配置管理器创建
+- ✅ `TestAddProvider` - 测试添加Provider
+  - Claude提供商
+  - Codex提供商
+- ✅ `TestListProviders` - 测试列出Providers
+- ✅ `TestGetProvider` - 测试获取指定Provider
+- ✅ `TestDeleteProvider` - 测试删除Provider
+- ✅ `TestUpdateProvider` - 测试更新Provider
+- ✅ `TestConfigPersistence` - 测试配置持久化
+- ✅ `TestConfigFileFormat` - 测试配置文件格式
+- ✅ `TestProviderID` - 测试Provider ID唯一性
+- ✅ `TestMultiAppIsolation` - 测试多应用隔离
+
+**关键功能:**
+- Provider CRUD 操作
+- 配置持久化验证
+- 多应用独立管理
+- 配置文件格式验证
+- ID 唯一性保证
+
+### 6. 测试工具包
 
 文件: `internal/testutil/testutil.go`
 
@@ -239,8 +265,9 @@ func TestExample(t *testing.T) {
 | internal/utils | 69.7% | 80% |
 | internal/settings | 82.4% | 85% |
 | internal/i18n | 60.0% | 70% |
+| internal/config | 32.1% | 60% |
 | internal/vscode | 25.0% | 50% |
-| **平均** | **59.3%** | **70%** |
+| **平均** | **53.8%** | **69%** |
 
 ## 集成测试
 

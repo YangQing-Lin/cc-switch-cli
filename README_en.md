@@ -239,6 +239,7 @@ go tool cover -html=coverage.out
 - **internal/settings**: 82.4% - Settings management, language switching
 - **internal/i18n**: 60.0% - Internationalization support (EN/ZH)
 - **internal/vscode**: 25.0% - VS Code/Cursor integration
+- **internal/config**: 32.1% - Provider CRUD, configuration management
 
 #### Integration Tests
 
