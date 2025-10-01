@@ -2,25 +2,30 @@ package config
 
 import (
 	"encoding/json"
-	"time"
 )
 
-// Config 表示单个中转站配置
-type Config struct {
-	Name                 string    `json:"name"`
-	AnthropicAuthToken   string    `json:"anthropicAuthToken"`
-	AnthropicBaseURL     string    `json:"anthropicBaseUrl"`
-	ClaudeCodeModel      string    `json:"claudeCodeModel,omitempty"`
-	ClaudeCodeMaxTokens  string    `json:"claudeCodeMaxTokens,omitempty"`
-	CreatedAt            time.Time `json:"createdAt"`
-	UpdatedAt            time.Time `json:"updatedAt"`
+// Provider 表示单个供应商配置（与 cc-switch 完全一致）
+type Provider struct {
+	ID             string                 `json:"id"`
+	Name           string                 `json:"name"`
+	SettingsConfig map[string]interface{} `json:"settingsConfig"` // 完整的配置 JSON
+	WebsiteURL     string                 `json:"websiteUrl,omitempty"`
+	Category       string                 `json:"category,omitempty"`
+	CreatedAt      int64                  `json:"createdAt,omitempty"` // 毫秒时间戳
 }
 
-// ConfigStore 存储所有配置和当前激活的配置
-type ConfigStore struct {
-	Configs       []Config `json:"configs"`
-	CurrentConfig string   `json:"currentConfig,omitempty"`
-	UpdatedAt     time.Time `json:"updatedAt"`
+// ProviderManager 管理单个应用的所有供应商（与 cc-switch 完全一致）
+type ProviderManager struct {
+	Providers map[string]Provider `json:"providers"` // id -> Provider
+	Current   string              `json:"current"`   // 当前激活的供应商 ID
+}
+
+// MultiAppConfig 根配置文件结构（与 cc-switch 完全一致）
+type MultiAppConfig struct {
+	Version int                         `json:"version"`         // 配置版本（当前为 2）
+	Apps    map[string]ProviderManager  `json:"-"`               // 使用 flatten 方式
+	Claude  ProviderManager             `json:"claude"`          // Claude 应用
+	Codex   ProviderManager             `json:"codex"`           // Codex 应用
 }
 
 // ClaudeEnv Claude 环境变量配置

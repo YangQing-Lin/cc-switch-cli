@@ -13,10 +13,9 @@ import (
 )
 
 var (
-	apiKey    string
-	baseURL   string
-	model     string
-	maxTokens string
+	apiKey   string
+	baseURL  string
+	category string
 )
 
 var addCmd = &cobra.Command{
@@ -40,25 +39,17 @@ var addCmd = &cobra.Command{
 			baseURL, _ = promptInput("请输入 Base URL: ")
 		}
 
-		if model == "" && !cmd.Flags().Changed("model") {
-			model, _ = promptInput("请输入 Model (可选，直接回车跳过): ")
+		if category == "" && !cmd.Flags().Changed("category") {
+			category, _ = promptInput("请输入 Category (可选，默认 custom): ")
 		}
 
-		if maxTokens == "" && !cmd.Flags().Changed("max-tokens") {
-			maxTokens, _ = promptInput("请输入 Max Tokens (可选，直接回车跳过): ")
-		}
-
-		// 创建配置
-		newConfig := config.Config{
-			Name:                configName,
-			AnthropicAuthToken:  strings.TrimSpace(apiKey),
-			AnthropicBaseURL:    strings.TrimSpace(baseURL),
-			ClaudeCodeModel:     strings.TrimSpace(model),
-			ClaudeCodeMaxTokens: strings.TrimSpace(maxTokens),
+		// 设置默认 category
+		if category == "" {
+			category = "custom"
 		}
 
 		// 验证配置
-		if err := newConfig.Validate(); err != nil {
+		if err := config.ValidateProvider(configName, strings.TrimSpace(apiKey), strings.TrimSpace(baseURL)); err != nil {
 			return err
 		}
 
@@ -68,7 +59,12 @@ var addCmd = &cobra.Command{
 			return fmt.Errorf("初始化配置管理器失败: %w", err)
 		}
 
-		if err := manager.AddConfig(newConfig); err != nil {
+		if err := manager.AddProvider(
+			configName,
+			strings.TrimSpace(apiKey),
+			strings.TrimSpace(baseURL),
+			category,
+		); err != nil {
 			return fmt.Errorf("添加配置失败: %w", err)
 		}
 
@@ -80,8 +76,7 @@ var addCmd = &cobra.Command{
 func init() {
 	addCmd.Flags().StringVar(&apiKey, "apikey", "", "API Token")
 	addCmd.Flags().StringVar(&baseURL, "base-url", "", "Base URL")
-	addCmd.Flags().StringVar(&model, "model", "", "Claude Code Model")
-	addCmd.Flags().StringVar(&maxTokens, "max-tokens", "", "Claude Code Max Tokens")
+	addCmd.Flags().StringVar(&category, "category", "custom", "Provider category (official/cn_official/aggregator/third_party/custom)")
 }
 
 // promptSecret 提示用户输入敏感信息（隐藏输入）

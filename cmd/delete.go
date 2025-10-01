@@ -26,16 +26,19 @@ var deleteCmd = &cobra.Command{
 		}
 
 		// 检查配置是否存在
-		cfg, err := manager.GetConfig(configName)
+		provider, err := manager.GetProvider(configName)
 		if err != nil {
 			return fmt.Errorf("配置不存在: %s", configName)
 		}
 
+		token := config.ExtractTokenFromProvider(provider)
+		baseURL := config.ExtractBaseURLFromProvider(provider)
+
 		// 显示配置详情
 		fmt.Println("即将删除以下配置:")
-		fmt.Printf("  名称: %s\n", cfg.Name)
-		fmt.Printf("  Token: %s\n", config.MaskToken(cfg.AnthropicAuthToken))
-		fmt.Printf("  URL: %s\n", cfg.AnthropicBaseURL)
+		fmt.Printf("  名称: %s\n", provider.Name)
+		fmt.Printf("  Token: %s\n", config.MaskToken(token))
+		fmt.Printf("  URL: %s\n", baseURL)
 
 		// 确认删除
 		if !force {
@@ -54,7 +57,7 @@ var deleteCmd = &cobra.Command{
 		}
 
 		// 执行删除
-		if err := manager.DeleteConfig(configName); err != nil {
+		if err := manager.DeleteProvider(configName); err != nil {
 			return fmt.Errorf("删除配置失败: %w", err)
 		}
 

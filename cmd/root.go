@@ -18,6 +18,7 @@ var rootCmd = &cobra.Command{
   cc-switch <配置名称>    切换到指定配置
   cc-switch config add   添加新配置
   cc-switch config delete 删除配置`,
+	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		manager, err := config.NewManager()
 		if err != nil {
@@ -57,9 +58,9 @@ func init() {
 }
 
 func listConfigs(manager *config.Manager) error {
-	configs := manager.ListConfigs()
+	providers := manager.ListProviders()
 
-	if len(configs) == 0 {
+	if len(providers) == 0 {
 		fmt.Println("暂无配置，使用 'cc-switch config add' 添加配置")
 		return nil
 	}
@@ -67,22 +68,25 @@ func listConfigs(manager *config.Manager) error {
 	fmt.Println("配置列表:")
 	fmt.Println("─────────")
 
-	currentConfig := manager.GetCurrentConfig()
+	currentProvider := manager.GetCurrentProvider()
 
-	for _, cfg := range configs {
+	for _, p := range providers {
 		status := "○"
-		if currentConfig != nil && cfg.Name == currentConfig.Name {
+		if currentProvider != nil && p.ID == currentProvider.ID {
 			status = "●"
 		}
 
+		token := config.ExtractTokenFromProvider(&p)
+		baseURL := config.ExtractBaseURLFromProvider(&p)
+
 		fmt.Printf("%s %-20s Token: %s  URL: %s",
 			status,
-			cfg.Name,
-			config.MaskToken(cfg.AnthropicAuthToken),
-			cfg.AnthropicBaseURL)
+			p.Name,
+			config.MaskToken(token),
+			baseURL)
 
-		if cfg.ClaudeCodeModel != "" {
-			fmt.Printf("  Model: %s", cfg.ClaudeCodeModel)
+		if p.Category != "" {
+			fmt.Printf("  Category: %s", p.Category)
 		}
 
 		fmt.Println()
@@ -92,18 +96,21 @@ func listConfigs(manager *config.Manager) error {
 }
 
 func switchConfig(manager *config.Manager, name string) error {
-	cfg, err := manager.GetConfig(name)
+	provider, err := manager.GetProvider(name)
 	if err != nil {
 		return fmt.Errorf("配置不存在: %s", name)
 	}
 
-	if err := manager.SwitchConfig(name); err != nil {
+	if err := manager.SwitchProvider(name); err != nil {
 		return fmt.Errorf("切换配置失败: %w", err)
 	}
 
+	token := config.ExtractTokenFromProvider(provider)
+	baseURL := config.ExtractBaseURLFromProvider(provider)
+
 	fmt.Printf("✓ 已切换到配置: %s\n", name)
-	fmt.Printf("  Token: %s\n", config.MaskToken(cfg.AnthropicAuthToken))
-	fmt.Printf("  URL: %s\n", cfg.AnthropicBaseURL)
+	fmt.Printf("  Token: %s\n", config.MaskToken(token))
+	fmt.Printf("  URL: %s\n", baseURL)
 
 	return nil
 }
