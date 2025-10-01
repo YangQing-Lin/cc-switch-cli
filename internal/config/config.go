@@ -173,6 +173,42 @@ func (m *Manager) AddProviderForApp(appName, name, apiToken, baseURL, category s
 	return m.Save()
 }
 
+// AddProviderDirect 直接添加 Provider 对象（用于导入）
+func (m *Manager) AddProviderDirect(appName string, provider Provider) error {
+	// 确保应用存在
+	if _, exists := m.config.Apps[appName]; !exists {
+		m.config.Apps[appName] = ProviderManager{
+			Providers: make(map[string]Provider),
+			Current:   "",
+		}
+	}
+
+	app := m.config.Apps[appName]
+
+	// 检查 ID 是否已存在
+	if _, exists := app.Providers[provider.ID]; exists {
+		return fmt.Errorf("Provider ID '%s' 已存在", provider.ID)
+	}
+
+	// 检查名称是否已存在
+	for _, p := range app.Providers {
+		if p.Name == provider.Name {
+			return fmt.Errorf("配置名称 '%s' 已存在", provider.Name)
+		}
+	}
+
+	// 添加 Provider
+	app.Providers[provider.ID] = provider
+
+	// 如果是第一个配置，自动设置为当前配置
+	if len(app.Providers) == 1 {
+		app.Current = provider.ID
+	}
+
+	m.config.Apps[appName] = app
+	return m.Save()
+}
+
 // DeleteProvider 删除供应商配置（默认为 Claude）
 func (m *Manager) DeleteProvider(name string) error {
 	return m.DeleteProviderForApp("claude", name)
@@ -266,6 +302,28 @@ func (m *Manager) GetCurrentProviderForApp(appName string) *Provider {
 	}
 
 	return nil
+}
+
+// GetConfig 获取完整配置（用于导出）
+func (m *Manager) GetConfig() (*MultiAppConfig, error) {
+	// 返回配置的副本，避免外部修改
+	configCopy := &MultiAppConfig{
+		Version: m.config.Version,
+		Apps:    make(map[string]ProviderManager),
+	}
+
+	for appName, appConfig := range m.config.Apps {
+		providersCopy := make(map[string]Provider)
+		for id, provider := range appConfig.Providers {
+			providersCopy[id] = provider
+		}
+		configCopy.Apps[appName] = ProviderManager{
+			Providers: providersCopy,
+			Current:   appConfig.Current,
+		}
+	}
+
+	return configCopy, nil
 }
 
 // SwitchProvider 切换到指定供应商（默认为 Claude）
@@ -396,7 +454,7 @@ func (m *Manager) writeProviderConfig(appName string, provider *Provider) error 
 	}
 }
 
-// writeClaudeConfig 写入 Claude 配置
+// writeClaudeConfig 写入 Claude 配置（带回滚机制）
 func (m *Manager) writeClaudeConfig(provider *Provider) error {
 	settingsPath, err := GetClaudeSettingsPath()
 	if err != nil {
@@ -409,11 +467,21 @@ func (m *Manager) writeClaudeConfig(provider *Provider) error {
 		return fmt.Errorf("创建目录失败: %w", err)
 	}
 
-	// 备份当前设置
+	// 创建回滚备份
+	var rollbackPath string
+	needRollback := false
 	if utils.FileExists(settingsPath) {
-		if err := utils.BackupFile(settingsPath); err != nil {
-			return fmt.Errorf("备份设置文件失败: %w", err)
+		rollbackPath = settingsPath + ".rollback"
+		if err := utils.CopyFile(settingsPath, rollbackPath); err != nil {
+			return fmt.Errorf("创建回滚备份失败: %w", err)
 		}
+		needRollback = true
+		defer func() {
+			// 清理回滚文件
+			if !needRollback && rollbackPath != "" {
+				os.Remove(rollbackPath)
+			}
+		}()
 	}
 
 	// 读取现有设置（保留其他字段）
@@ -449,7 +517,19 @@ func (m *Manager) writeClaudeConfig(provider *Provider) error {
 	}
 
 	// 保存设置
-	return utils.WriteJSONFile(settingsPath, settings, 0644)
+	if err := utils.WriteJSONFile(settingsPath, settings, 0644); err != nil {
+		// 如果写入失败，尝试恢复
+		if needRollback && rollbackPath != "" {
+			if restoreErr := utils.CopyFile(rollbackPath, settingsPath); restoreErr != nil {
+				return fmt.Errorf("写入失败且无法恢复: 写入错误=%w, 恢复错误=%v", err, restoreErr)
+			}
+		}
+		return fmt.Errorf("保存设置失败: %w", err)
+	}
+
+	// 成功写入，标记不需要回滚
+	needRollback = false
+	return nil
 }
 
 // writeCodexConfig 写入 Codex 配置
