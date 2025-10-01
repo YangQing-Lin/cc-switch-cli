@@ -4,6 +4,7 @@ A lightweight command-line tool for managing multiple Claude API configurations 
 
 ## Features
 
+- 🖥️ **Interactive TUI** - Modern terminal user interface powered by Bubble Tea with keyboard navigation and visual operations
 - 🔄 **Quick Switch** - Switch between different Claude API configurations with a single command
 - 📝 **Configuration Management** - Add, delete, and view multiple API configurations
 - 🔐 **Secure Storage** - API tokens are masked when displayed, configuration files are permission-protected
@@ -29,25 +30,47 @@ Download the appropriate pre-compiled binary for your operating system from the 
 
 ## Usage
 
-### List All Configurations
+### Interactive TUI Interface (Recommended)
+
+Launch the interactive terminal user interface:
 
 ```bash
 cc-switch
+# Or explicitly specify
+cc-switch ui
 ```
 
-Example output:
-```
-Configuration List:
-─────────
-● official              Token: sk-ant-...***  URL: https://api.anthropic.com  Category: official
-○ 88code                Token: 88_e7...***   URL: https://www.example.org/api  Category: custom
-○ local-proxy           Token: sk-ww...***   URL: http://127.0.0.1:3456  Category: custom
-```
+**TUI Features:**
 
-- `●` indicates the currently active configuration
-- `○` indicates inactive configurations
+- 📋 **Visual List** - Display all configurations clearly at a glance
+- ⌨️ **Keyboard Navigation** - Use arrow keys to select configurations
+- ✏️ **Instant Editing** - Press `e` to quickly edit a configuration
+- ➕ **Quick Add** - Press `a` to add a new configuration
+- 🗑️ **Safe Delete** - Press `d` to delete a configuration (with confirmation)
+- 🔄 **One-Key Switch** - Press `Enter` to switch to the selected configuration
+- 🎨 **Friendly Interface** - Beautiful colors and layout design
 
-### Switch Configuration
+**TUI Keyboard Shortcuts:**
+
+| Shortcut | Function |
+|----------|----------|
+| `↑` / `k` | Move cursor up |
+| `↓` / `j` | Move cursor down |
+| `Enter` | Switch to selected configuration |
+| `a` | Add new configuration |
+| `e` | Edit selected configuration |
+| `d` | Delete selected configuration |
+| `r` | Refresh list |
+| `q` / `Ctrl+C` | Exit |
+
+In form editing mode:
+- `Tab` / `Shift+Tab` - Switch input focus
+- `Enter` - Save and submit
+- `ESC` - Cancel and return
+
+### Command-Line Mode
+
+#### Switch Configuration
 
 ```bash
 cc-switch <configuration-name>
@@ -184,15 +207,25 @@ A: Basic validation (name, token, URL format) is performed when adding configura
 cc-switch-cli/
 ├── main.go                 # Entry point
 ├── cmd/                    # Command-line interface
-│   ├── root.go            # Root command
+│   ├── root.go            # Root command (with TUI integration)
+│   ├── ui.go              # TUI subcommand
 │   ├── config.go          # Config subcommand
 │   ├── add.go             # Add configuration
 │   └── delete.go          # Delete configuration
 ├── internal/              # Internal implementation
 │   ├── config/           # Configuration management
+│   ├── tui/              # TUI interface (Bubble Tea)
+│   ├── i18n/             # Internationalization support
 │   └── utils/            # Utility functions
 └── go.mod                # Dependency management
 ```
+
+### Technology Stack
+
+- **CLI Framework**: [Cobra](https://github.com/spf13/cobra) - Command-line interface
+- **TUI Framework**: [Bubble Tea](https://github.com/charmbracelet/bubbletea) - Terminal user interface
+- **TUI Components**: [Bubbles](https://github.com/charmbracelet/bubbles) - Reusable components
+- **Style Beautification**: [Lip Gloss](https://github.com/charmbracelet/lipgloss) - Terminal styling
 
 ### Building the Project
 

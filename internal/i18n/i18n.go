@@ -38,6 +38,23 @@ var messages = map[string]map[string]string{
 		"file_not_found":    "File not found",
 		"directory_created": "Directory created",
 		"directory_opened":  "Opened configuration directory in file manager",
+
+		// TUI specific
+		"error.cannot_delete_current":  "Cannot delete currently active configuration",
+		"error.switch_failed":          "Failed to switch configuration",
+		"error.name_required":          "Configuration name is required",
+		"error.token_required":         "API Token is required",
+		"error.base_url_required":      "API Base URL is required",
+		"error.invalid_config":         "Invalid configuration",
+		"error.update_failed":          "Failed to update configuration",
+		"error.add_failed":             "Failed to add configuration",
+		"error.delete_failed":          "Failed to delete configuration",
+		"success.switched_to":          "Switched to",
+		"success.provider_updated":     "Configuration updated successfully",
+		"success.provider_added":       "Configuration added successfully",
+		"success.provider_deleted":     "Configuration deleted",
+		"warning.apply_vscode_failed":  "Failed to apply to VSCode",
+		"confirm.delete_provider_message": "Are you sure you want to delete configuration '%s'?",
 	},
 	"zh": {
 		// Common
@@ -67,6 +84,23 @@ var messages = map[string]map[string]string{
 		"file_not_found":    "文件未找到",
 		"directory_created": "目录已创建",
 		"directory_opened":  "已在文件管理器中打开配置目录",
+
+		// TUI specific
+		"error.cannot_delete_current":  "无法删除当前激活的配置",
+		"error.switch_failed":          "切换配置失败",
+		"error.name_required":          "配置名称不能为空",
+		"error.token_required":         "API Token 不能为空",
+		"error.base_url_required":      "API 基础 URL 不能为空",
+		"error.invalid_config":         "配置格式无效",
+		"error.update_failed":          "更新配置失败",
+		"error.add_failed":             "添加配置失败",
+		"error.delete_failed":          "删除配置失败",
+		"success.switched_to":          "已切换到",
+		"success.provider_updated":     "配置更新成功",
+		"success.provider_added":       "配置添加成功",
+		"success.provider_deleted":     "配置已删除",
+		"warning.apply_vscode_failed":  "应用到 VSCode 失败",
+		"confirm.delete_provider_message": "确定要删除配置 '%s' 吗？",
 	},
 }
 

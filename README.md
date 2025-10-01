@@ -4,6 +4,7 @@
 
 ## 功能特性
 
+- 🖥️ **交互式 TUI** - 基于 Bubble Tea 的现代化终端用户界面，支持键盘导航和可视化操作
 - 🔄 **快速切换** - 通过单个命令在不同的Claude API配置之间切换
 - 📝 **配置管理** - 添加、删除和查看多个API配置
 - 🔐 **安全存储** - 显示时API令牌会被遮掩，配置文件受权限保护
@@ -29,25 +30,54 @@ go build -o cc-switch
 
 ## 使用方法
 
-### 列出所有配置
+### 交互式 TUI 界面 (推荐)
+
+启动交互式终端用户界面:
 
 ```bash
 cc-switch
+# 或明确指定
+cc-switch ui
 ```
 
-示例输出：
-```
-Configuration List:
-─────────
-● official              Token: sk-ant-...***  URL: https://api.anthropic.com  Category: official
-○ 88code                Token: 88_e7...***   URL: https://www.example.org/api  Category: custom
-○ local-proxy           Token: sk-ww...***   URL: http://127.0.0.1:3456  Category: custom
+**TUI 功能特性:**
+
+- 📋 **可视化列表** - 清晰展示所有配置，一目了然
+- ⌨️ **键盘导航** - 使用方向键选择配置
+- ✏️ **即时编辑** - 按 `e` 快速编辑配置
+- ➕ **快速添加** - 按 `a` 添加新配置
+- 🗑️ **安全删除** - 按 `d` 删除配置(带确认)
+- 🔄 **一键切换** - 按 `Enter` 切换到选中的配置
+- 🎨 **友好界面** - 美观的色彩和布局设计
+
+**TUI 快捷键:**
+
+| 快捷键 | 功能 |
+|--------|------|
+| `↑` / `k` | 向上移动光标 |
+| `↓` / `j` | 向下移动光标 |
+| `Enter` | 切换到选中的配置 |
+| `a` | 添加新配置 |
+| `e` | 编辑选中的配置 |
+| `d` | 删除选中的配置 |
+| `r` | 刷新列表 |
+| `q` / `Ctrl+C` | 退出 |
+
+在表单编辑模式下:
+- `Tab` / `Shift+Tab` - 切换输入框焦点
+- `Enter` - 保存并提交
+- `ESC` - 取消并返回
+
+### 命令行模式
+
+#### 列出所有配置
+
+```bash
+# 由于默认启动TUI，使用其他命令查看列表
+cc-switch config show
 ```
 
-- `●` 表示当前激活的配置
-- `○` 表示非激活配置
-
-### 切换配置
+#### 切换配置
 
 ```bash
 cc-switch <配置名称>
@@ -184,15 +214,25 @@ A: 添加配置时会执行基本验证（名称、令牌、URL格式）。实�
 cc-switch-cli/
 ├── main.go                 # 入口点
 ├── cmd/                    # 命令行界面
-│   ├── root.go            # 根命令
+│   ├── root.go            # 根命令 (集成TUI)
+│   ├── ui.go              # TUI 子命令
 │   ├── config.go          # 配置子命令
 │   ├── add.go             # 添加配置
 │   └── delete.go          # 删除配置
 ├── internal/              # 内部实现
 │   ├── config/           # 配置管理
+│   ├── tui/              # TUI 界面 (Bubble Tea)
+│   ├── i18n/             # 国际化支持
 │   └── utils/            # 实用函数
 └── go.mod                # 依赖管理
 ```
+
+### 技术栈
+
+- **CLI 框架**: [Cobra](https://github.com/spf13/cobra) - 命令行接口
+- **TUI 框架**: [Bubble Tea](https://github.com/charmbracelet/bubbletea) - 终端用户界面
+- **TUI 组件**: [Bubbles](https://github.com/charmbracelet/bubbles) - 可复用组件
+- **样式美化**: [Lip Gloss](https://github.com/charmbracelet/lipgloss) - 终端样式
 
 ### 构建项目
 

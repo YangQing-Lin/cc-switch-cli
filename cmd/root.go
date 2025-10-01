@@ -6,6 +6,8 @@ import (
 
 	"github.com/YangQing-Lin/cc-switch-cli/internal/config"
 	"github.com/YangQing-Lin/cc-switch-cli/internal/i18n"
+	"github.com/YangQing-Lin/cc-switch-cli/internal/tui"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 )
 
@@ -17,8 +19,9 @@ var rootCmd = &cobra.Command{
 	Long: `cc-switch 是一个用于管理多个 Claude 中转站配置的命令行工具。
 
 使用方法：
-  cc-switch              列出所有配置
+  cc-switch              启动交互式 TUI 界面
   cc-switch <配置名称>    切换到指定配置
+  cc-switch ui           明确启动 TUI 界面
   cc-switch config add   添加新配置
   cc-switch config delete 删除配置`,
 	Args: cobra.MaximumNArgs(1),
@@ -40,9 +43,9 @@ var rootCmd = &cobra.Command{
 			}
 		}
 
-		// 无参数：列出所有配置
+		// 无参数：启动 TUI
 		if len(args) == 0 {
-			return listConfigs(manager)
+			return startTUI(manager)
 		}
 
 		// 单参数：切换配置
@@ -133,5 +136,15 @@ func switchConfig(manager *config.Manager, name string) error {
 	fmt.Printf("  Token: %s\n", config.MaskToken(token))
 	fmt.Printf("  URL: %s\n", baseURL)
 
+	return nil
+}
+
+// startTUI 启动交互式 TUI
+func startTUI(manager *config.Manager) error {
+	model := tui.New(manager)
+	p := tea.NewProgram(model, tea.WithAltScreen())
+	if _, err := p.Run(); err != nil {
+		return fmt.Errorf("运行 TUI 失败: %w", err)
+	}
 	return nil
 }
