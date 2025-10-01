@@ -1,0 +1,229 @@
+# cc-switch-cli
+
+A lightweight command-line tool for managing multiple Claude API configurations with quick switching capabilities.
+
+## Features
+
+- 🔄 **Quick Switch** - Switch between different Claude API configurations with a single command
+- 📝 **Configuration Management** - Add, delete, and view multiple API configurations
+- 🔐 **Secure Storage** - API tokens are masked when displayed, configuration files are permission-protected
+- 🌍 **Cross-Platform** - Supports Windows, macOS, Linux, and other operating systems
+- 💡 **Interactive Input** - Supports both command-line arguments and interactive prompts
+- 🎨 **User-Friendly** - Clear list display with intuitive status indicators
+
+## Installation
+
+### Build from Source
+
+Requires Go 1.25.1 or higher:
+
+```bash
+git clone https://github.com/YangQing-Lin/cc-switch-cli.git
+cd cc-switch-cli
+go build -o cc-switch
+```
+
+### Download Pre-built Binaries
+
+Download the appropriate pre-compiled binary for your operating system from the [Releases](https://github.com/YangQing-Lin/cc-switch-cli/releases) page.
+
+## Usage
+
+### List All Configurations
+
+```bash
+cc-switch
+```
+
+Example output:
+```
+Configuration List:
+─────────
+● official              Token: sk-ant-...***  URL: https://api.anthropic.com  Category: official
+○ 88code                Token: 88_e7...***   URL: https://www.example.org/api  Category: custom
+○ local-proxy           Token: sk-ww...***   URL: http://127.0.0.1:3456  Category: custom
+```
+
+- `●` indicates the currently active configuration
+- `○` indicates inactive configurations
+
+### Switch Configuration
+
+```bash
+cc-switch <configuration-name>
+```
+
+Example:
+```bash
+cc-switch 88code
+```
+
+Output:
+```
+✓ Switched to configuration: 88code
+  Token: 88_e7...***
+  URL: https://www.example.org/api
+```
+
+### Add New Configuration
+
+#### Method 1: Interactive Mode
+
+```bash
+cc-switch config add my-config
+```
+
+The program will prompt you to enter:
+- API Token (hidden input)
+- Base URL
+- Category (optional)
+
+#### Method 2: Command-line Arguments
+
+```bash
+cc-switch config add my-config \
+  --apikey "sk-ant-xxxxx" \
+  --base-url "https://api.example.com" \
+  --category "custom"
+```
+
+Supported category types:
+- `official` - Official API
+- `cn_official` - Official China region
+- `aggregator` - Aggregator service
+- `third_party` - Third-party service
+- `custom` - Custom (default)
+
+### Delete Configuration
+
+```bash
+cc-switch config delete <configuration-name>
+```
+
+Add `--force` or `-f` flag to skip confirmation:
+
+```bash
+cc-switch config delete my-config --force
+```
+
+## Configuration File
+
+Configuration file locations:
+
+- **Windows**: `%USERPROFILE%\.cc-switch\config.json`
+- **macOS/Linux**: `~/.cc-switch/config.json`
+
+Configuration file format:
+```json
+{
+  "version": 2,
+  "claude": {
+    "providers": {
+      "uuid-xxx": {
+        "id": "uuid-xxx",
+        "name": "config-name",
+        "settingsConfig": {
+          "env": {
+            "ANTHROPIC_AUTH_TOKEN": "your-api-token",
+            "ANTHROPIC_BASE_URL": "api-endpoint"
+          }
+        },
+        "category": "custom",
+        "createdAt": 1234567890
+      }
+    },
+    "current": "active-config-id"
+  }
+}
+```
+
+## Compatibility with cc-switch GUI Version
+
+cc-switch-cli is fully compatible with the [cc-switch](https://github.com/YangQing-Lin/cc-switch) GUI version:
+
+- ✅ Shares the same configuration file format
+- ✅ Supports identical configuration structure
+- ✅ Can be used interchangeably
+- ✅ Configuration changes sync in real-time
+
+You can use both CLI and GUI versions simultaneously as they read and write the same configuration file.
+
+## Security Considerations
+
+1. **File Permissions** - Configuration files default to 600 permissions (owner read/write only)
+2. **Token Masking** - API tokens are automatically masked when displayed
+3. **Backup Mechanism** - Automatic `.bak` backup file created before each save
+4. **Input Protection** - API token input is hidden during configuration
+
+## FAQ
+
+### Q: How to migrate from old version configurations?
+
+A: cc-switch-cli automatically detects and migrates v1 configuration files to v2 format.
+
+### Q: What to do if the configuration file is corrupted?
+
+A: You can restore from the automatically generated `config.json.bak` backup file.
+
+### Q: Which Claude API providers are supported?
+
+A: All services compatible with the Anthropic API format are supported, including:
+- Official Claude API
+- Various relay services
+- Local proxy services
+
+### Q: How to verify if a configuration is valid?
+
+A: Basic validation (name, token, URL format) is performed when adding configurations. Actual connection testing occurs during usage.
+
+## Development
+
+### Project Structure
+
+```
+cc-switch-cli/
+├── main.go                 # Entry point
+├── cmd/                    # Command-line interface
+│   ├── root.go            # Root command
+│   ├── config.go          # Config subcommand
+│   ├── add.go             # Add configuration
+│   └── delete.go          # Delete configuration
+├── internal/              # Internal implementation
+│   ├── config/           # Configuration management
+│   └── utils/            # Utility functions
+└── go.mod                # Dependency management
+```
+
+### Building the Project
+
+```bash
+# Build for current platform
+go build -o cc-switch
+
+# Build for Windows
+GOOS=windows GOARCH=amd64 go build -o cc-switch.exe
+
+# Build for macOS
+GOOS=darwin GOARCH=amd64 go build -o cc-switch-darwin
+
+# Build for Linux
+GOOS=linux GOARCH=amd64 go build -o cc-switch-linux
+```
+
+### Running Tests
+
+```bash
+go test ./...
+```
+
+## License
+
+MIT License
+
+## Contributing
+
+Issues and Pull Requests are welcome!
+
+## Related Projects
+
+- [cc-switch](https://github.com/YangQing-Lin/cc-switch) - GUI version with graphical interface for configuration management
