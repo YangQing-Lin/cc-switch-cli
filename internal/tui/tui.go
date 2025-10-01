@@ -276,28 +276,49 @@ func (m Model) viewList() string {
 	} else {
 		current := m.manager.GetCurrentProvider()
 		for i, p := range m.providers {
+			// 判断是否是当前激活的配置
+			isActive := current != nil && p.ID == current.ID
+			isCursor := i == m.cursor
+
+			// 分开渲染 marker 和名称，避免样式覆盖
 			marker := "○"
-			if current != nil && p.ID == current.ID {
-				marker = lipgloss.NewStyle().
+			markerStyle := lipgloss.NewStyle()
+			if isActive {
+				markerStyle = lipgloss.NewStyle().
 					Foreground(lipgloss.Color("#34C759")).
-					Bold(true).
-					Render("●")
+					Bold(true)
+				marker = "●"
 			}
+			styledMarker := markerStyle.Render(marker)
 
-			line := fmt.Sprintf("%s %s", marker, p.Name)
-			if i == m.cursor {
-				line = lipgloss.NewStyle().
-					Background(lipgloss.Color("#F2F2F7")).
-					Foreground(lipgloss.Color("#007AFF")).
-					Bold(true).
-					Padding(0, 1).
-					Render(line)
+			// 渲染名称
+			nameText := p.Name
+			if isCursor {
+				if isActive {
+					// 当前激活 + 光标选中 = 绿色背景 + 白色文字
+					nameText = lipgloss.NewStyle().
+						Background(lipgloss.Color("#34C759")).
+						Foreground(lipgloss.Color("#FFFFFF")).
+						Bold(true).
+						Padding(0, 1).
+						Render(nameText)
+				} else {
+					// 仅光标选中 = 蓝色背景 + 白色文字
+					nameText = lipgloss.NewStyle().
+						Background(lipgloss.Color("#007AFF")).
+						Foreground(lipgloss.Color("#FFFFFF")).
+						Bold(true).
+						Padding(0, 1).
+						Render(nameText)
+				}
 			} else {
-				line = lipgloss.NewStyle().
+				nameText = lipgloss.NewStyle().
 					Padding(0, 1).
-					Render(line)
+					Render(nameText)
 			}
 
+			// 组合 marker 和名称
+			line := fmt.Sprintf("%s %s", styledMarker, nameText)
 			s.WriteString(line + "\n")
 		}
 	}

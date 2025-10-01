@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -68,7 +69,7 @@ func NewManagerWithDir(customDir string) (*Manager, error) {
 // Load 加载配置文件
 func (m *Manager) Load() error {
 	if !utils.FileExists(m.configPath) {
-		// 配置文件不存在，创建默认配置
+		// 配置文件不存在，创建默认配置（仅内存，不立即保存）
 		m.config = &MultiAppConfig{
 			Version: 2,
 			Apps: map[string]ProviderManager{
@@ -82,7 +83,9 @@ func (m *Manager) Load() error {
 				},
 			},
 		}
-		return m.Save()
+		// 不立即保存，等待首次添加配置时再保存
+		// 避免与 cc-switch UI 产生竞争条件导致配置被重置
+		return nil
 	}
 
 	data, err := os.ReadFile(m.configPath)
@@ -316,6 +319,12 @@ func (m *Manager) ListProvidersForApp(appName string) []Provider {
 	for _, p := range app.Providers {
 		providers = append(providers, p)
 	}
+
+	// 按创建时间排序，保证顺序稳定
+	sort.Slice(providers, func(i, j int) bool {
+		return providers[i].CreatedAt < providers[j].CreatedAt
+	})
+
 	return providers
 }
 
