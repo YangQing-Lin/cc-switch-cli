@@ -6,15 +6,15 @@
 ## 核心架构要求
 
 ### 配置文件兼容性
-- [ ] 使用相同的配置文件路径 `~/.cc-switch/config.json`
-- [ ] 兼容 v2 版本配置格式
+- [x] 使用相同的配置文件路径 `~/.cc-switch/config.json`
+- [x] 兼容 v2 版本配置格式
 - [ ] 支持从 v1 自动升级到 v2
-- [ ] 使用相同的数据结构（Provider、ProviderManager、MultiAppConfig）
+- [x] 使用相同的数据结构（Provider、ProviderManager、MultiAppConfig）
 
 ### 单一数据源（SSOT）原则
-- [ ] 配置集中存储于 `~/.cc-switch/config.json`
-- [ ] 切换时直接写入目标工具的实际配置文件
-- [ ] 实现三步切换流程：回填(Backfill) → 切换(Switch) → 持久化(Persist)
+- [x] 配置集中存储于 `~/.cc-switch/config.json`
+- [x] 切换时直接写入目标工具的实际配置文件
+- [x] 实现三步切换流程：回填(Backfill) → 切换(Switch) → 持久化(Persist)
 
 ## 功能模块对照表
 
@@ -23,23 +23,23 @@
 #### 基础 CRUD 操作
 - [x] 列出所有供应商 (list)
 - [x] 添加供应商 (add)
-- [ ] 更新供应商 (update)
+- [x] 更新供应商 (update)
 - [x] 删除供应商 (delete)
-- [ ] 查看供应商详情 (show)
+- [x] 查看供应商详情 (show)
 
 #### 切换功能
 - [x] 基础切换功能 (switch)
-- [ ] 切换前回填当前 live 配置
-- [ ] 切换后更新 current 标记
+- [x] 切换前回填当前 live 配置
+- [x] 切换后更新 current 标记
 - [ ] 切换失败回滚机制
 
 ### 2. 多应用支持
 
 #### Claude 支持
 - [x] Claude 配置管理
-- [ ] 写入 `~/.claude/settings.json`
-- [ ] 兼容旧版 `~/.claude/claude.json`
-- [ ] Claude 配置验证（必须包含 env.ANTHROPIC_AUTH_TOKEN）
+- [x] 写入 `~/.claude/settings.json`
+- [x] 兼容旧版 `~/.claude/claude.json`
+- [x] Claude 配置验证（必须包含 env.ANTHROPIC_AUTH_TOKEN）
 
 #### Codex 支持
 - [ ] Codex 配置管理
@@ -51,10 +51,10 @@
 ### 3. 配置文件操作
 
 #### 原子写入
-- [ ] 实现原子文件写入（临时文件 + rename）
-- [ ] 跨平台兼容（Windows 先删除再 rename，Unix 直接覆盖）
-- [ ] 保留原文件权限（Unix系统）
-- [ ] 写入前创建备份（.bak文件）
+- [x] 实现原子文件写入（临时文件 + rename）
+- [x] 跨平台兼容（Windows 先删除再 rename，Unix 直接覆盖）
+- [x] 保留原文件权限（Unix系统）
+- [x] 写入前创建备份（.bak文件）
 
 #### 配置迁移
 - [ ] 副本文件合并（扫描 `settings-*.json`、`auth-*.json`）
@@ -97,7 +97,7 @@
 
 ### 8. 安全性功能
 
-- [ ] API Token 掩码显示
+- [x] API Token 掩码显示
 - [ ] 配置文件权限设置（600）
 - [ ] 敏感信息保护
 

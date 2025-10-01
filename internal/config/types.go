@@ -22,10 +22,8 @@ type ProviderManager struct {
 
 // MultiAppConfig 根配置文件结构（与 cc-switch 完全一致）
 type MultiAppConfig struct {
-	Version int                         `json:"version"`         // 配置版本（当前为 2）
-	Apps    map[string]ProviderManager  `json:"-"`               // 使用 flatten 方式
-	Claude  ProviderManager             `json:"claude"`          // Claude 应用
-	Codex   ProviderManager             `json:"codex"`           // Codex 应用
+	Version int                        `json:"version"` // 配置版本（当前为 2）
+	Apps    map[string]ProviderManager `json:"apps"`    // 应用名称 -> ProviderManager
 }
 
 // ClaudeEnv Claude 环境变量配置
