@@ -47,6 +47,9 @@
 - [x] 双文件事务机制（失败自动回滚）
 - [x] YAML 语法校验
 - [x] Codex 配置验证（必须包含 api_key 字段）
+- [x] Codex 专用命令组（codex add/list/switch/delete/update）
+- [x] Codex 模型参数支持（model_name）
+- [x] TUI 多应用支持（Claude/Codex 切换）
 
 ### 3. 配置文件操作
 
@@ -196,6 +199,13 @@ cc-switch claude-plugin status               # 检查 Claude 插件配置状态
 cc-switch claude-plugin apply                # 应用配置到 Claude 插件
 cc-switch claude-plugin remove               # 移除 Claude 插件配置
 cc-switch claude-plugin check                # 检测配置是否已应用
+
+# Codex CLI 管理 (v0.4.0 新增) ✅
+cc-switch codex add <name> [--apikey] [--base-url] [--model]  # 添加 Codex 配置
+cc-switch codex list                         # 列出所有 Codex 配置
+cc-switch codex switch <name>                # 切换 Codex 配置
+cc-switch codex update <name> [--apikey] [--base-url] [--model] # 更新 Codex 配置
+cc-switch codex delete <name> [-f]           # 删除 Codex 配置
 ```
 
 ## 数据结构对照
@@ -337,6 +347,7 @@ type MultiAppConfig struct {
 - 2025-10-02 早: P1 功能全部完成
 - 2025-10-02 午: P2 大部分功能完成（多语言、设置管理、版本控制等）
 - 2025-10-02: GUI 更新至 v3.3.1+，新增 Claude 插件同步功能（待实现）
+- 2025-10-06: Codex CLI 完整支持实现（v0.4.0）
 
 ### 最新完成的功能（v0.3.0）
 
@@ -390,6 +401,66 @@ type MultiAppConfig struct {
 - ✅ 迁移时创建归档备份到 `archive/config.v2-old.backup.<timestamp>.json`
 - ✅ CLI 专用备份文件使用 `.bak.cli` 后缀（避免与 GUI 冲突）
 - ✅ 完整测试覆盖（迁移测试、格式兼容性测试、备份测试）
+
+### 最新完成的功能（v0.4.0）- Codex CLI 完整支持 🎉
+
+#### Codex 命令组实现
+- ✅ `codex add` 命令：添加 Codex CLI 配置
+  - 支持 API Key、Base URL、Model 参数
+  - 交互式输入缺失参数
+  - 自动生成双文件配置（config.yaml + api.json）
+- ✅ `codex list` 命令：列出所有 Codex 配置
+  - 显示配置详情（API Key、Base URL、Model）
+  - 当前激活配置标记
+- ✅ `codex switch` 命令：切换 Codex 配置
+  - SSOT 三步流程（回填 → 切换 → 持久化）
+  - 双文件原子写入（config.yaml + api.json）
+  - 失败自动回滚机制
+- ✅ `codex update` 命令：更新 Codex 配置
+  - 支持更新 API Key、Base URL、Model
+  - 交互式输入保留原值选项
+  - 立即应用到 live 配置（如果是当前激活）
+- ✅ `codex delete` 命令：删除 Codex 配置
+  - 确认提示（可用 -f 跳过）
+  - 防止删除当前激活配置
+
+#### TUI 多应用支持
+- ✅ 应用类型切换：
+  - 按 `t` 键：在 Claude 和 Codex 之间切换
+  - 按 `c` 键：直接切换到 Claude
+  - 按 `x` 键：直接切换到 Codex
+- ✅ 动态标题显示：
+  - "CC Switch - Claude Code 配置管理"
+  - "CC Switch - Codex CLI 配置管理"
+- ✅ 应用选择界面：
+  - 可视化应用选择（app_select 模式）
+  - 键盘导航选择应用
+- ✅ 统一操作体验：
+  - 所有 CRUD 操作支持 Claude/Codex
+  - 添加、编辑、删除、切换自动适配当前应用
+  - 帮助文本更新显示新快捷键
+
+#### Codex 配置结构
+```json
+{
+  "config": {
+    "base_url": "https://api.anthropic.com",
+    "api_key": "sk-xxx",
+    "model_name": "claude-3-5-sonnet-20241022"
+  },
+  "api": {
+    "baseURL": "https://api.anthropic.com",
+    "apiKey": "sk-xxx"
+  }
+}
+```
+
+#### 技术实现亮点
+- ✅ 双文件事务机制：config.yaml + api.json 原子写入
+- ✅ 失败自动回滚：任一文件写入失败则恢复原状态
+- ✅ Model 参数支持：可自定义模型名称
+- ✅ 完整 SSOT 模式：与 Rust 后端架构保持一致
+- ✅ TUI 状态管理：currentApp 字段追踪当前应用类型
 
 ### 代码质量
 - ✅ 所有新功能已通过编译测试

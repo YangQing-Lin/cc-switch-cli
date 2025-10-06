@@ -21,25 +21,29 @@ type Model struct {
 	height     int
 	err        error
 	message    string
-	mode       string // "list", "add", "edit", "delete"
+	mode       string // "list", "add", "edit", "delete", "app_select"
 	editName   string // 正在编辑的配置名称
 	deleteName string // 要删除的配置名称
 	inputs     []textinput.Model
 	focusIndex int
+	currentApp string // "claude" or "codex"
+	appCursor  int    // 应用选择光标 (0=Claude, 1=Codex)
 }
 
 // New 创建新的 TUI 模型
 func New(manager *config.Manager) Model {
 	m := Model{
-		manager: manager,
-		mode:    "list",
+		manager:    manager,
+		mode:       "list",
+		currentApp: "claude", // 默认显示 Claude
+		appCursor:  0,
 	}
 	m.refreshProviders()
 	return m
 }
 
 func (m *Model) refreshProviders() {
-	m.providers = m.manager.ListProviders()
+	m.providers = m.manager.ListProvidersForApp(m.currentApp)
 }
 
 func (m Model) Init() tea.Cmd {
@@ -66,6 +70,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateInputs(msg)
 		case "delete":
 			return m.handleDeleteKeys(msg)
+		case "app_select":
+			return m.handleAppSelectKeys(msg)
 		}
 	}
 
@@ -80,6 +86,8 @@ func (m Model) View() string {
 		return m.viewForm()
 	case "delete":
 		return m.viewDelete()
+	case "app_select":
+		return m.viewAppSelect()
 	}
 	return ""
 }
@@ -100,9 +108,9 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "enter":
 		if len(m.providers) > 0 {
 			provider := m.providers[m.cursor]
-			current := m.manager.GetCurrentProvider()
+			current := m.manager.GetCurrentProviderForApp(m.currentApp)
 			if current == nil || provider.ID != current.ID {
-				err := m.manager.SwitchProvider(provider.Name)
+				err := m.manager.SwitchProviderForApp(m.currentApp, provider.Name)
 				if err != nil {
 					m.err = err
 					m.message = ""
@@ -129,7 +137,7 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "d":
 		if len(m.providers) > 0 {
 			provider := m.providers[m.cursor]
-			current := m.manager.GetCurrentProvider()
+			current := m.manager.GetCurrentProviderForApp(m.currentApp)
 			if current != nil && provider.ID == current.ID {
 				m.err = errors.New(i18n.T("error.cannot_delete_current"))
 				m.message = ""
@@ -142,6 +150,35 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.refreshProviders()
 		m.message = "列表已刷新"
 		m.err = nil
+	case "t":
+		// Toggle between Claude and Codex
+		if m.currentApp == "claude" {
+			m.currentApp = "codex"
+		} else {
+			m.currentApp = "claude"
+		}
+		m.cursor = 0
+		m.refreshProviders()
+		m.message = fmt.Sprintf("切换到 %s", m.currentApp)
+		m.err = nil
+	case "c":
+		// Switch to Claude
+		if m.currentApp != "claude" {
+			m.currentApp = "claude"
+			m.cursor = 0
+			m.refreshProviders()
+			m.message = "切换到 Claude"
+			m.err = nil
+		}
+	case "x":
+		// Switch to Codex
+		if m.currentApp != "codex" {
+			m.currentApp = "codex"
+			m.cursor = 0
+			m.refreshProviders()
+			m.message = "切换到 Codex"
+			m.err = nil
+		}
 	}
 	return m, nil
 }
@@ -204,10 +241,10 @@ func (m *Model) submitForm() {
 	var err error
 	if m.mode == "edit" {
 		// Update provider
-		err = m.manager.UpdateProviderWithWebsite("claude", m.editName, name, websiteURL, token, baseURL, "custom")
+		err = m.manager.UpdateProviderWithWebsite(m.currentApp, m.editName, name, websiteURL, token, baseURL, "custom")
 	} else {
 		// Add provider
-		err = m.manager.AddProviderWithWebsite("claude", name, websiteURL, token, baseURL, "custom")
+		err = m.manager.AddProviderWithWebsite(m.currentApp, name, websiteURL, token, baseURL, "custom")
 	}
 
 	if err != nil {
@@ -229,7 +266,7 @@ func (m *Model) submitForm() {
 func (m Model) handleDeleteKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "y", "Y":
-		err := m.manager.DeleteProvider(m.deleteName)
+		err := m.manager.DeleteProviderForApp(m.currentApp, m.deleteName)
 		if err != nil {
 			m.err = err
 			m.message = ""
@@ -250,16 +287,48 @@ func (m Model) handleDeleteKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// App select handlers
+func (m Model) handleAppSelectKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "q", "esc":
+		m.mode = "list"
+	case "up", "k":
+		if m.appCursor > 0 {
+			m.appCursor--
+		}
+	case "down", "j":
+		if m.appCursor < 1 {
+			m.appCursor++
+		}
+	case "enter":
+		if m.appCursor == 0 {
+			m.currentApp = "claude"
+		} else {
+			m.currentApp = "codex"
+		}
+		m.cursor = 0
+		m.refreshProviders()
+		m.mode = "list"
+		m.message = fmt.Sprintf("切换到 %s", m.currentApp)
+	}
+	return m, nil
+}
+
 // View renderers
 func (m Model) viewList() string {
 	var s strings.Builder
 
-	// Title
+	// Title with current app indicator
+	appName := "Claude Code"
+	if m.currentApp == "codex" {
+		appName = "Codex CLI"
+	}
+
 	title := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("#007AFF")).
 		Padding(0, 1).
-		Render("CC Switch - Claude 配置管理")
+		Render(fmt.Sprintf("CC Switch - %s 配置管理", appName))
 	s.WriteString(title + "\n\n")
 
 	// Status message
@@ -273,9 +342,9 @@ func (m Model) viewList() string {
 
 	// Provider list
 	if len(m.providers) == 0 {
-		s.WriteString("暂无配置，按 'a' 添加新配置\n\n")
+		s.WriteString(fmt.Sprintf("暂无 %s 配置，按 'a' 添加新配置\n\n", appName))
 	} else {
-		current := m.manager.GetCurrentProvider()
+		current := m.manager.GetCurrentProviderForApp(m.currentApp)
 		for i, p := range m.providers {
 			// 判断是否是当前激活的配置
 			isActive := current != nil && p.ID == current.ID
@@ -333,10 +402,48 @@ func (m Model) viewList() string {
 		"a: 添加",
 		"e: 编辑",
 		"d: 删除",
+		"t: 切换应用",
+		"c: Claude",
+		"x: Codex",
 		"r: 刷新",
 		"q: 退出",
 	}
 	s.WriteString(helpStyle.Render(strings.Join(helps, " • ")))
+
+	return s.String()
+}
+
+// viewAppSelect renders the app selection screen
+func (m Model) viewAppSelect() string {
+	var s strings.Builder
+
+	title := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("#007AFF")).
+		Padding(0, 1).
+		Render("选择应用")
+	s.WriteString(title + "\n\n")
+
+	apps := []string{"Claude Code", "Codex CLI"}
+	for i, app := range apps {
+		marker := "○"
+		style := lipgloss.NewStyle().Padding(0, 1)
+
+		if i == m.appCursor {
+			marker = "●"
+			style = style.
+				Background(lipgloss.Color("#007AFF")).
+				Foreground(lipgloss.Color("#FFFFFF")).
+				Bold(true)
+		}
+
+		line := fmt.Sprintf("%s %s", marker, style.Render(app))
+		s.WriteString(line + "\n")
+	}
+
+	s.WriteString("\n")
+	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#8E8E93"))
+	s.WriteString(helpStyle.Render("↑/↓: 选择 • Enter: 确认 • ESC: 取消"))
 
 	return s.String()
 }

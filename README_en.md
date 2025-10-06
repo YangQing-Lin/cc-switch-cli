@@ -11,6 +11,7 @@ A lightweight command-line tool for managing multiple Claude API configurations 
 - 🌍 **Cross-Platform** - Supports Windows, macOS, Linux, and other operating systems
 - 💡 **Interactive Input** - Supports both command-line arguments and interactive prompts
 - 🎨 **User-Friendly** - Clear list display with intuitive status indicators
+- 🎯 **Multi-App Support** - Manage both Claude Code and Codex CLI configurations
 
 ## Installation
 
@@ -163,6 +164,9 @@ ccs ui
 | `a` | Add new configuration |
 | `e` | Edit selected configuration |
 | `d` | Delete selected configuration |
+| `t` | Toggle app (Claude/Codex) |
+| `c` | Switch to Claude |
+| `x` | Switch to Codex |
 | `r` | Refresh list |
 | `q` / `Ctrl+C` | Exit |
 
@@ -232,6 +236,61 @@ Add `--force` or `-f` flag to skip confirmation:
 ```bash
 ccs config delete my-config --force
 ```
+
+### Codex CLI Configuration Management 🆕
+
+#### Add Codex Configuration
+
+```bash
+ccs codex add my-codex \
+  --apikey "sk-ant-xxxxx" \
+  --base-url "https://api.anthropic.com" \
+  --model "claude-3-5-sonnet-20241022"
+```
+
+#### List Codex Configurations
+
+```bash
+ccs codex list
+```
+
+#### Switch Codex Configuration
+
+```bash
+ccs codex switch my-codex
+```
+
+Output:
+```
+✓ Switched to Codex configuration: my-codex
+  Base URL: https://api.anthropic.com
+  API Key: sk-a...***
+  Model: claude-3-5-sonnet-20241022
+
+Updated files:
+  - C:\Users\username\.codex\config.yaml
+  - C:\Users\username\.codex\api.json
+```
+
+#### Update Codex Configuration
+
+```bash
+ccs codex update my-codex \
+  --model "claude-opus-4-20250514" \
+  --apikey "sk-new-key"
+```
+
+#### Delete Codex Configuration
+
+```bash
+ccs codex delete my-codex -f
+```
+
+**Codex Configuration Features:**
+- 🔄 **Dual File Management** - Automatically maintains `config.yaml` and `api.json`
+- ⚡ **Atomic Operations** - Transactional writes with automatic rollback on failure
+- 🎯 **Model Support** - Customize the Claude model to use
+- 🛡️ **SSOT Pattern** - Fully consistent with Rust backend architecture
 
 ## Configuration File
 

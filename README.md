@@ -11,6 +11,7 @@
 - 🌍 **跨平台** - 支持Windows、macOS、Linux和其他操作系统
 - 💡 **交互式输入** - 支持命令行参数和交互式提示
 - 🎨 **用户友好** - 清晰的列表显示和直观的状态指示器
+- 🎯 **多应用支持** - 同时管理 Claude Code 和 Codex CLI 配置
 
 ## 安装
 
@@ -163,6 +164,9 @@ ccs ui
 | `a` | 添加新配置 |
 | `e` | 编辑选中的配置 |
 | `d` | 删除选中的配置 |
+| `t` | 切换应用（Claude/Codex） |
+| `c` | 切换到 Claude |
+| `x` | 切换到 Codex |
 | `r` | 刷新列表 |
 | `q` / `Ctrl+C` | 退出 |
 
@@ -239,6 +243,61 @@ ccs config delete <配置名称>
 ```bash
 ccs config delete my-config --force
 ```
+
+### Codex CLI 配置管理 🆕
+
+#### 添加 Codex 配置
+
+```bash
+ccs codex add my-codex \
+  --apikey "sk-ant-xxxxx" \
+  --base-url "https://api.anthropic.com" \
+  --model "claude-3-5-sonnet-20241022"
+```
+
+#### 列出 Codex 配置
+
+```bash
+ccs codex list
+```
+
+#### 切换 Codex 配置
+
+```bash
+ccs codex switch my-codex
+```
+
+输出：
+```
+✓ 已切换到 Codex 配置: my-codex
+  Base URL: https://api.anthropic.com
+  API Key: sk-a...***
+  Model: claude-3-5-sonnet-20241022
+
+已更新文件:
+  - C:\Users\username\.codex\config.yaml
+  - C:\Users\username\.codex\api.json
+```
+
+#### 更新 Codex 配置
+
+```bash
+ccs codex update my-codex \
+  --model "claude-opus-4-20250514" \
+  --apikey "sk-new-key"
+```
+
+#### 删除 Codex 配置
+
+```bash
+ccs codex delete my-codex -f
+```
+
+**Codex 配置特点：**
+- 🔄 **双文件管理** - 自动维护 `config.yaml` 和 `api.json`
+- ⚡ **原子操作** - 事务性写入，失败自动回滚
+- 🎯 **模型支持** - 可自定义使用的 Claude 模型
+- 🛡️ **SSOT 模式** - 与 Rust 后端架构完全一致
 
 ## 配置文件
 
