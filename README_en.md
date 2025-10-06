@@ -292,6 +292,60 @@ ccs codex delete my-codex -f
 - 🎯 **Model Support** - Customize the Claude model to use
 - 🛡️ **SSOT Pattern** - Fully consistent with Rust backend architecture
 
+### Configuration Backup & Restore 🆕
+
+#### Export Configuration
+
+```bash
+# Export to default file (cc-switch-export-<timestamp>.json)
+ccs export
+
+# Export to specified file
+ccs export --output my-config.json
+
+# Export with filtering by app or provider
+ccs export --app claude --pretty
+```
+
+#### Import Configuration (with Auto-backup)
+
+```bash
+# Import from file (automatically creates backup)
+ccs import --from-file my-config.json
+
+# Sample output:
+# ✓ Backup created: backup_20251006_143528
+# ✓ Configuration imported: Claude Official-1
+# Import complete: 1 configuration imported, 0 skipped
+```
+
+**Key Features:**
+- ✅ **Auto-backup** - Automatically backs up current config to `~/.cc-switch/backups/` before import
+- ✅ **Backup Format** - `backup_YYYYMMDD_HHMMSS.json` (consistent with GUI v3.4.0)
+- ✅ **Auto-cleanup** - Only keeps the 10 most recent backups, old ones are automatically deleted
+
+#### Backup Management
+
+```bash
+# Manually create backup
+ccs backup
+
+# List all backups
+ccs backup list
+
+# Restore from backup
+ccs backup restore backup_20251006_143528
+
+# Sample restore output:
+# ✓ Pre-restore backup created: backup_20251006_143639_pre-restore.json
+# ✓ Configuration restored from backup: backup_20251006_143528.json
+```
+
+**Backup Features:**
+- 📦 **Safe Restore** - Automatically backs up current config before restoration
+- 🔍 **Format Validation** - Validates backup file integrity before restoration
+- 📊 **Detailed Info** - Displays backup time, size, and path
+
 ## Configuration File
 
 Configuration file locations:
@@ -331,15 +385,17 @@ cc-switch-cli is fully compatible with the [cc-switch](https://github.com/YangQi
 - ✅ Supports identical configuration structure
 - ✅ Can be used interchangeably
 - ✅ Configuration changes sync in real-time
+- ✅ Backup format fully compatible (v0.5.0 aligned with GUI v3.4.0)
 
-You can use both CLI and GUI versions simultaneously as they read and write the same configuration file.
+You can use both CLI and GUI versions simultaneously as they read and write the same configuration file. Backups created by CLI and GUI are also mutually restorable.
 
 ## Security Considerations
 
 1. **File Permissions** - Configuration files default to 600 permissions (owner read/write only)
 2. **Token Masking** - API tokens are automatically masked when displayed
-3. **Backup Mechanism** - Automatic `.bak` backup file created before each save
+3. **Backup Mechanism** - Automatic timestamped backups before import, keeps most recent 10
 4. **Input Protection** - API token input is hidden during configuration
+5. **Restore Protection** - Automatically backs up current config before restoration
 
 ## FAQ
 
@@ -349,7 +405,11 @@ A: cc-switch-cli automatically detects and migrates v1 configuration files to v2
 
 ### Q: What to do if the configuration file is corrupted?
 
-A: You can restore from the automatically generated `config.json.bak` backup file.
+A: You can restore from the following backups:
+1. Use `ccs backup list` to view all automatic backups
+2. Use `ccs backup restore <backup-id>` to restore to a specific backup
+3. Auto-backups before import are located in `~/.cc-switch/backups/` directory
+4. You can also manually restore from `config.json.bak.cli`
 
 ### Q: Which Claude API providers are supported?
 

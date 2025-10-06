@@ -93,11 +93,12 @@
 - [x] 语言切换支持（en/zh）
 - [x] 自定义配置目录设置
 
-### 7. 导入导出功能
+### 7. 导入导出功能 ✅
 
 - [x] 从 live 配置导入（首次启动）
 - [x] 导出配置到文件
 - [x] 导入配置从文件
+- [x] 导入前自动备份（匹配 GUI v3.4.0）
 - [x] 配置验证
 
 ### 8. 安全性功能 ✅
@@ -124,8 +125,9 @@
 #### 备份机制
 - [x] 常规备份（每次保存前自动创建 .bak.cli）
 - [x] 手动备份（backup 命令）
-- [x] 列出所有备份
-- [x] 自动清理旧备份
+- [x] 导入前自动备份（`backup_YYYYMMDD_HHMMSS.json` 格式，匹配 GUI v3.4.0）
+- [x] 列出所有备份（backup list 命令）
+- [x] 自动清理旧备份（保留最近10个，匹配 GUI）
 - [x] 备份验证
 
 #### 归档机制
@@ -134,12 +136,17 @@
 - [x] 带时间戳的归档文件名
 
 #### 恢复机制
-- [x] 从备份恢复配置（restore 命令）
+- [x] 从备份恢复配置（backup restore 命令）
 - [x] 从指定文件恢复
 - [x] 恢复前验证配置格式
+- [x] 恢复前自动备份当前配置（pre-restore 备份）
 
-#### 与 GUI 的区别
-- CLI 使用 `.bak.cli` 后缀（避免与 GUI 的 `.bak` 冲突）
+#### 与 GUI v3.4.0 的一致性
+- ✅ 导入前自动备份（backup_YYYYMMDD_HHMMSS.json）
+- ✅ 备份目录：`~/.cc-switch/backups/`
+- ✅ 自动清理旧备份（保留最近10个）
+- ✅ 备份格式完全兼容
+- CLI 额外使用 `.bak.cli` 后缀（用于常规保存时的备份）
 - CLI 归档到 `archive/config.v2-old.backup.<timestamp>.json`
 - GUI 归档到 `archive/<timestamp>/<category>/` 结构
 
@@ -348,6 +355,7 @@ type MultiAppConfig struct {
 - 2025-10-02 午: P2 大部分功能完成（多语言、设置管理、版本控制等）
 - 2025-10-02: GUI 更新至 v3.3.1+，新增 Claude 插件同步功能（待实现）
 - 2025-10-06: Codex CLI 完整支持实现（v0.4.0）
+- 2025-10-06: 导入前自动备份功能实现，与 GUI v3.4.0 备份机制对齐（v0.5.0）
 
 ### 最新完成的功能（v0.3.0）
 
@@ -461,6 +469,56 @@ type MultiAppConfig struct {
 - ✅ Model 参数支持：可自定义模型名称
 - ✅ 完整 SSOT 模式：与 Rust 后端架构保持一致
 - ✅ TUI 状态管理：currentApp 字段追踪当前应用类型
+
+### 最新完成的功能（v0.5.0）- 导入前自动备份 🎉
+
+#### 与 GUI v3.4.0 备份功能对齐
+
+根据 GUI 项目 v3.4.0 新增的配置备份、导入与导出功能，CLI 已实现对应功能：
+
+1. **导入前自动备份**
+   - ✅ 导入配置时自动创建备份
+   - ✅ 备份命名格式：`backup_YYYYMMDD_HHMMSS.json`（与 GUI 一致）
+   - ✅ 备份位置：`~/.cc-switch/backups/`（与 GUI 一致）
+   - ✅ 自动清理旧备份（保留最近10个，与 GUI 一致）
+
+2. **备份列表命令**
+   - ✅ `backup list` - 列出所有备份文件
+   - ✅ 显示备份时间、大小、路径
+   - ✅ 按时间倒序排列（最新的在前）
+
+3. **备份恢复命令**
+   - ✅ `backup restore <backup-id>` - 从备份恢复配置
+   - ✅ 恢复前自动备份当前配置（pre-restore）
+   - ✅ 验证备份文件格式
+
+4. **导入命令增强**
+   - ✅ `import --from-file` 导入前自动创建备份
+   - ✅ 显示备份ID给用户
+   - ✅ 备份失败时给出警告但不中断导入
+
+#### 命令示例
+
+```bash
+# 导出配置
+cc-switch export --output my-config.json
+
+# 导入配置（自动创建备份）
+cc-switch import --from-file my-config.json
+# 输出: ✓ 已创建备份: backup_20251006_143528
+
+# 列出所有备份
+cc-switch backup list
+
+# 从备份恢复
+cc-switch backup restore backup_20251006_143528
+```
+
+#### 技术实现细节
+- ✅ 使用UTC时间戳确保跨时区一致性
+- ✅ 备份清理使用文件修改时间排序
+- ✅ 恢复前验证备份文件JSON格式
+- ✅ 所有备份操作具有原子性（失败不影响现有配置）
 
 ### 代码质量
 - ✅ 所有新功能已通过编译测试

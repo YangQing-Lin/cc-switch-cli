@@ -299,6 +299,60 @@ ccs codex delete my-codex -f
 - 🎯 **模型支持** - 可自定义使用的 Claude 模型
 - 🛡️ **SSOT 模式** - 与 Rust 后端架构完全一致
 
+### 配置备份与恢复 🆕
+
+#### 导出配置
+
+```bash
+# 导出到默认文件（cc-switch-export-<timestamp>.json）
+ccs export
+
+# 导出到指定文件
+ccs export --output my-config.json
+
+# 导出时过滤特定应用或配置
+ccs export --app claude --pretty
+```
+
+#### 导入配置（自动备份）
+
+```bash
+# 从文件导入（自动创建备份）
+ccs import --from-file my-config.json
+
+# 输出示例：
+# ✓ 已创建备份: backup_20251006_143528
+# ✓ 导入配置: Claude官方-1
+# 导入完成: 1 个配置已导入, 0 个配置已跳过
+```
+
+**重要特性：**
+- ✅ **自动备份** - 导入前自动备份当前配置到 `~/.cc-switch/backups/`
+- ✅ **备份格式** - `backup_YYYYMMDD_HHMMSS.json`（与 GUI v3.4.0 一致）
+- ✅ **自动清理** - 仅保留最近10个备份，旧备份自动删除
+
+#### 备份管理
+
+```bash
+# 手动创建备份
+ccs backup
+
+# 列出所有备份
+ccs backup list
+
+# 从备份恢复配置
+ccs backup restore backup_20251006_143528
+
+# 恢复输出示例：
+# ✓ 已创建恢复前备份: backup_20251006_143639_pre-restore.json
+# ✓ 配置已从备份恢复: backup_20251006_143528.json
+```
+
+**备份特点：**
+- 📦 **安全恢复** - 恢复前自动备份当前配置
+- 🔍 **格式验证** - 恢复前验证备份文件有效性
+- 📊 **详细信息** - 显示备份时间、大小、路径
+
 ## 配置文件
 
 配置文件位置：
@@ -338,15 +392,17 @@ cc-switch-cli与[cc-switch](https://github.com/YangQing-Lin/cc-switch) GUI版本
 - ✅ 支持相同的配置结构
 - ✅ 可以互换使用
 - ✅ 配置更改实时同步
+- ✅ 备份格式完全兼容（v0.5.0 与 GUI v3.4.0 对齐）
 
-您可以同时使用CLI和GUI版本，因为它们读取和写入相同的配置文件。
+您可以同时使用CLI和GUI版本，因为它们读取和写入相同的配置文件。CLI和GUI创建的备份也可以互相恢复。
 
 ## 安全注意事项
 
 1. **文件权限** - 配置文件默认为600权限（仅所有者可读/写）
 2. **令牌遮掩** - 显示时API令牌会自动遮掩
-3. **备份机制** - 每次保存前自动创建`.bak`备份文件
+3. **备份机制** - 导入前自动创建时间戳备份，保留最近10个
 4. **输入保护** - 配置期间API令牌输入被隐藏
+5. **恢复保护** - 从备份恢复前自动备份当前配置
 
 ## 常见问题
 
@@ -356,7 +412,11 @@ A: cc-switch-cli自动检测并将v1配置文件迁移到v2格式。
 
 ### Q: 配置文件损坏怎么办？
 
-A: 您可以从自动生成的`config.json.bak`备份文件恢复。
+A: 您可以从以下备份恢复：
+1. 使用 `ccs backup list` 查看所有自动备份
+2. 使用 `ccs backup restore <backup-id>` 恢复到指定备份
+3. 导入前的自动备份位于 `~/.cc-switch/backups/` 目录
+4. 也可以从 `config.json.bak.cli` 手动恢复
 
 ### Q: 支持哪些Claude API提供商？
 

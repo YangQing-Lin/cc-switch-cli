@@ -87,20 +87,23 @@ Codex 配置包括：
 		}
 
 		// 构建 Codex 配置
-		// Codex 使用特定的配置格式
+		// 生成 TOML 格式的 config.toml 内容
+		configToml := fmt.Sprintf(`model_provider = "custom"
+model = "%s"
+
+[model_providers.custom]
+name = "custom"
+base_url = "%s"
+wire_api = "responses"`, modelName, baseURL)
+
 		provider := config.Provider{
 			ID:   uuid.New().String(),
 			Name: configName,
 			SettingsConfig: map[string]interface{}{
-				"config": map[string]interface{}{
-					"base_url":   baseURL,
-					"api_key":    apiKey,
-					"model_name": modelName,
+				"auth": map[string]interface{}{
+					"OPENAI_API_KEY": apiKey,
 				},
-				"api": map[string]interface{}{
-					"baseURL": baseURL,
-					"apiKey":  apiKey,
-				},
+				"config": configToml,
 			},
 			WebsiteURL: websiteURL,
 			Category:   category,

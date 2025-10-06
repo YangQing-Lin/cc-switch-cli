@@ -57,10 +57,10 @@ func runCheck() error {
 
 	// Codex 配置
 	codexConfigPath, _ := config.GetCodexConfigPath()
-	checkFile("Codex config.yaml", codexConfigPath)
+	checkFile("Codex config.toml", codexConfigPath)
 
-	codexApiPath, _ := config.GetCodexApiJsonPath()
-	checkFile("Codex api.json", codexApiPath)
+	codexAuthPath, _ := config.GetCodexAuthJsonPath()
+	checkFile("Codex auth.json", codexAuthPath)
 	fmt.Println()
 
 	// 检查 VS Code 集成

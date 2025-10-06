@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"time"
 
 	"github.com/YangQing-Lin/cc-switch-cli/internal/config"
 	"github.com/YangQing-Lin/cc-switch-cli/internal/utils"
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
 )
 
 // importCmd represents the import command
@@ -129,52 +129,48 @@ func importClaudeLive(manager *config.Manager, name string) error {
 func importCodexLive(manager *config.Manager, name string) error {
 	configPath, err := config.GetCodexConfigPath()
 	if err != nil {
-		return fmt.Errorf("获取 Codex config 路径失败: %w", err)
+		return fmt.Errorf("获取 Codex config.toml 路径失败: %w", err)
 	}
 
-	apiJsonPath, err := config.GetCodexApiJsonPath()
+	authJsonPath, err := config.GetCodexAuthJsonPath()
 	if err != nil {
-		return fmt.Errorf("获取 Codex api.json 路径失败: %w", err)
+		return fmt.Errorf("获取 Codex auth.json 路径失败: %w", err)
 	}
 
-	// 检查两个文件是否都存在
-	if !utils.FileExists(configPath) && !utils.FileExists(apiJsonPath) {
-		return fmt.Errorf("Codex 配置文件不存在")
+	// 检查 auth.json 是否存在（必需）
+	if !utils.FileExists(authJsonPath) {
+		return fmt.Errorf("Codex auth.json 文件不存在")
 	}
 
-	// 读取 config.yaml
-	var configData config.CodexConfig
+	// 读取 auth.json
+	var authData config.CodexAuthJson
+	if err := utils.ReadJSONFile(authJsonPath, &authData); err != nil {
+		return fmt.Errorf("读取 auth.json 失败: %w", err)
+	}
+
+	// 读取 config.toml (可选)
+	var configContent string
 	if utils.FileExists(configPath) {
 		data, err := os.ReadFile(configPath)
 		if err != nil {
-			return fmt.Errorf("读取 config.yaml 失败: %w", err)
+			return fmt.Errorf("读取 config.toml 失败: %w", err)
 		}
-		if err := yaml.Unmarshal(data, &configData); err != nil {
-			return fmt.Errorf("解析 config.yaml 失败: %w", err)
-		}
-	}
-
-	// 读取 api.json
-	var apiData config.CodexApiJson
-	if utils.FileExists(apiJsonPath) {
-		if err := utils.ReadJSONFile(apiJsonPath, &apiData); err != nil {
-			return fmt.Errorf("读取 api.json 失败: %w", err)
-		}
-	}
-
-	// 合并配置（api.json 优先）
-	apiKey := configData.APIKey
-	if apiData.APIKey != "" {
-		apiKey = apiData.APIKey
-	}
-	baseURL := configData.BaseURL
-	if apiData.BaseURL != "" {
-		baseURL = apiData.BaseURL
+		configContent = string(data)
 	}
 
 	// 验证配置
+	apiKey := authData.OpenAIAPIKey
 	if apiKey == "" {
 		return fmt.Errorf("Codex 配置缺少 API Key")
+	}
+
+	// 从 config.toml 中提取 base_url (如果存在)
+	baseURL := ""
+	if configContent != "" {
+		re := regexp.MustCompile(`base_url\s*=\s*"([^"]+)"`)
+		if matches := re.FindStringSubmatch(configContent); len(matches) > 1 {
+			baseURL = matches[1]
+		}
 	}
 
 	// 默认名称
@@ -203,9 +199,8 @@ func importCodexLive(manager *config.Manager, name string) error {
 
 	fmt.Printf("成功导入 Codex 配置 '%s':\n", name)
 	fmt.Printf("  Token: %s\n", config.MaskToken(apiKey))
-	fmt.Printf("  URL: %s\n", baseURL)
-	if configData.ModelName != "" {
-		fmt.Printf("  Model: %s\n", configData.ModelName)
+	if baseURL != "" {
+		fmt.Printf("  URL: %s\n", baseURL)
 	}
 
 	return nil
@@ -221,6 +216,17 @@ func importFromFile(manager *config.Manager, filePath, appName string) error {
 	var importConfig config.MultiAppConfig
 	if err := utils.ReadJSONFile(filePath, &importConfig); err != nil {
 		return fmt.Errorf("读取导入文件失败: %w", err)
+	}
+
+	// 创建自动备份（在导入前）
+	configPath := manager.GetConfigPath()
+	if utils.FileExists(configPath) {
+		backupID, err := createAutoBackup(configPath)
+		if err != nil {
+			fmt.Printf("⚠ 创建备份失败: %v\n", err)
+		} else if backupID != "" {
+			fmt.Printf("✓ 已创建备份: %s\n", backupID)
+		}
 	}
 
 	// 导入配置
@@ -382,6 +388,73 @@ func scanAndImport(manager *config.Manager, appName string) error {
 	}
 
 	return nil
+}
+
+// createAutoBackup 创建自动备份（匹配 GUI 的备份格式）
+func createAutoBackup(configPath string) (string, error) {
+	// 生成时间戳 (格式: backup_YYYYMMDD_HHMMSS)
+	timestamp := time.Now().UTC().Format("20060102_150405")
+	backupID := fmt.Sprintf("backup_%s", timestamp)
+
+	// 创建备份目录
+	configDir := filepath.Dir(configPath)
+	backupDir := filepath.Join(configDir, "backups")
+	if err := os.MkdirAll(backupDir, 0755); err != nil {
+		return "", fmt.Errorf("创建备份目录失败: %w", err)
+	}
+
+	// 创建备份文件
+	backupPath := filepath.Join(backupDir, backupID+".json")
+	if err := utils.CopyFile(configPath, backupPath); err != nil {
+		return "", fmt.Errorf("复制配置文件失败: %w", err)
+	}
+
+	// 清理旧备份（保留最近10个）
+	cleanupAutoBackups(backupDir, 10)
+
+	return backupID, nil
+}
+
+// cleanupAutoBackups 清理旧的自动备份
+func cleanupAutoBackups(backupDir string, maxBackups int) {
+	pattern := filepath.Join(backupDir, "backup_*.json")
+	files, err := filepath.Glob(pattern)
+	if err != nil || len(files) <= maxBackups {
+		return
+	}
+
+	// 获取文件信息并排序
+	type fileInfo struct {
+		path string
+		time time.Time
+	}
+	var fileInfos []fileInfo
+
+	for _, file := range files {
+		info, err := os.Stat(file)
+		if err != nil {
+			continue
+		}
+		fileInfos = append(fileInfos, fileInfo{
+			path: file,
+			time: info.ModTime(),
+		})
+	}
+
+	// 按时间排序（最旧的在前）
+	for i := 0; i < len(fileInfos)-1; i++ {
+		for j := i + 1; j < len(fileInfos); j++ {
+			if fileInfos[i].time.After(fileInfos[j].time) {
+				fileInfos[i], fileInfos[j] = fileInfos[j], fileInfos[i]
+			}
+		}
+	}
+
+	// 删除最旧的文件
+	toDelete := len(fileInfos) - maxBackups
+	for i := 0; i < toDelete && i < len(fileInfos); i++ {
+		os.Remove(fileInfos[i].path)
+	}
 }
 
 func init() {

@@ -59,10 +59,10 @@ var codexSwitchCmd = &cobra.Command{
 
 		// 显示配置文件位置
 		configPath, _ := config.GetCodexConfigPath()
-		apiPath, _ := config.GetCodexApiJsonPath()
+		authPath, _ := config.GetCodexAuthJsonPath()
 		fmt.Printf("\n已更新文件:\n")
 		fmt.Printf("  - %s\n", configPath)
-		fmt.Printf("  - %s\n", apiPath)
+		fmt.Printf("  - %s\n", authPath)
 
 		return nil
 	},
