@@ -50,17 +50,19 @@
 
 ### 3. 配置文件操作
 
-#### 原子写入
+#### 原子写入 ✅
 - [x] 实现原子文件写入（临时文件 + rename）
 - [x] 跨平台兼容（Windows 先删除再 rename，Unix 直接覆盖）
 - [x] 保留原文件权限（Unix系统）
-- [x] 写入前创建备份（.bak文件）
+- [x] 写入前创建备份（CLI 专用 .bak.cli 文件）
 
 #### 配置迁移 ✅
 - [x] 副本文件合并（扫描 `settings.json`、`claude.json`）
 - [x] 按名称+API Key去重
 - [x] 迁移命令实现 (migrate)
 - [x] 模拟运行模式支持 (--dry-run)
+- [x] 旧格式自动迁移（检测带"apps"键的v2旧格式）
+- [x] 迁移时归档旧配置到 `archive/config.v2-old.backup.<timestamp>.json`
 
 ### 4. 配置目录管理
 
@@ -114,13 +116,29 @@
 - [x] 详细错误信息输出
 - [ ] 调试模式日志
 
-### 11. 备份恢复功能
+### 11. 备份恢复功能 ✅
 
-- [x] 备份配置到文件（backup）
-- [x] 从备份恢复配置（restore）
+#### 备份机制
+- [x] 常规备份（每次保存前自动创建 .bak.cli）
+- [x] 手动备份（backup 命令）
 - [x] 列出所有备份
 - [x] 自动清理旧备份
 - [x] 备份验证
+
+#### 归档机制
+- [x] v2旧格式迁移归档（`archive/config.v2-old.backup.<timestamp>.json`）
+- [x] 归档目录结构：`~/.cc-switch/archive/`
+- [x] 带时间戳的归档文件名
+
+#### 恢复机制
+- [x] 从备份恢复配置（restore 命令）
+- [x] 从指定文件恢复
+- [x] 恢复前验证配置格式
+
+#### 与 GUI 的区别
+- CLI 使用 `.bak.cli` 后缀（避免与 GUI 的 `.bak` 冲突）
+- CLI 归档到 `archive/config.v2-old.backup.<timestamp>.json`
+- GUI 归档到 `archive/<timestamp>/<category>/` 结构
 
 ### 12. Claude 插件集成 🆕
 
@@ -365,11 +383,20 @@ type MultiAppConfig struct {
 - ✅ 统一处理 `--dir` 全局参数
 - ✅ 改进错误处理和用户提示
 
+#### 配置格式兼容性改进（v0.3.1）
+- ✅ 实现与 GUI 完全兼容的 v2 配置格式（扁平化结构）
+- ✅ 自定义 JSON 序列化/反序列化（MarshalJSON/UnmarshalJSON）
+- ✅ 自动检测并迁移旧格式（带"apps"键）到新格式
+- ✅ 迁移时创建归档备份到 `archive/config.v2-old.backup.<timestamp>.json`
+- ✅ CLI 专用备份文件使用 `.bak.cli` 后缀（避免与 GUI 冲突）
+- ✅ 完整测试覆盖（迁移测试、格式兼容性测试、备份测试）
+
 ### 代码质量
 - ✅ 所有新功能已通过编译测试
 - ✅ 所有新功能已通过功能测试
 - ✅ 跨平台兼容性验证（Windows/macOS/Linux）
 - ✅ 文件权限正确设置和验证
+- ✅ 配置文件与 GUI 项目完全兼容
 
 ## GUI 新增功能追踪（v3.3.1+）
 
