@@ -20,10 +20,68 @@ type ProviderManager struct {
 	Current   string              `json:"current"`   // 当前激活的供应商 ID
 }
 
-// MultiAppConfig 根配置文件结构（与 cc-switch 完全一致）
+// MultiAppConfig 根配置文件结构（v2 格式，与 cc-switch 完全一致）
+// 注意：v2 格式将 apps 展平到顶层，而不是嵌套在 "apps" 键下
 type MultiAppConfig struct {
 	Version int                        `json:"version"` // 配置版本（当前为 2）
+	Apps    map[string]ProviderManager `json:"-"`       // 应用名称 -> ProviderManager (展平到顶层)
+}
+
+// OldMultiAppConfig 旧版配置文件结构（v2-old 格式，apps 嵌套在 "apps" 键下）
+// 用于向后兼容
+type OldMultiAppConfig struct {
+	Version int                        `json:"version"` // 配置版本（当前为 2）
 	Apps    map[string]ProviderManager `json:"apps"`    // 应用名称 -> ProviderManager
+}
+
+// MarshalJSON 自定义序列化，将 Apps 展平到顶层
+func (c *MultiAppConfig) MarshalJSON() ([]byte, error) {
+	result := make(map[string]interface{})
+	result["version"] = c.Version
+
+	// 将 Apps map 中的每个应用展平到顶层
+	for appName, appManager := range c.Apps {
+		result[appName] = appManager
+	}
+
+	return json.Marshal(result)
+}
+
+// UnmarshalJSON 自定义反序列化，从顶层读取应用配置
+func (c *MultiAppConfig) UnmarshalJSON(data []byte) error {
+	// 先解析到 map
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	// 提取 version
+	if versionData, ok := raw["version"]; ok {
+		if err := json.Unmarshal(versionData, &c.Version); err != nil {
+			return err
+		}
+	}
+
+	// 初始化 Apps map
+	c.Apps = make(map[string]ProviderManager)
+
+	// 已知的应用类型（非应用字段）
+	knownFields := map[string]bool{
+		"version": true,
+	}
+
+	// 提取所有应用配置（除了 version 之外的字段都视为应用）
+	for key, rawData := range raw {
+		if !knownFields[key] {
+			var manager ProviderManager
+			if err := json.Unmarshal(rawData, &manager); err != nil {
+				return err
+			}
+			c.Apps[key] = manager
+		}
+	}
+
+	return nil
 }
 
 // ClaudeEnv Claude 环境变量配置

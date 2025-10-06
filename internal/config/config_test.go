@@ -363,3 +363,209 @@ func TestMultiAppIsolation(t *testing.T) {
 		t.Errorf("Codex提供商数量 = %d, want 1", len(codexProviders))
 	}
 }
+
+// TestConfigMigration 测试从旧格式迁移到新格式
+func TestConfigMigration(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.json")
+
+	// 1. 创建旧格式的配置文件（apps 嵌套在 "apps" 键下）
+	oldConfig := OldMultiAppConfig{
+		Version: 2,
+		Apps: map[string]ProviderManager{
+			"claude": {
+				Providers: map[string]Provider{
+					"test-id": {
+						ID:   "test-id",
+						Name: "Test Provider",
+						SettingsConfig: map[string]interface{}{
+							"env": map[string]interface{}{
+								"ANTHROPIC_AUTH_TOKEN": "sk-test123",
+								"ANTHROPIC_BASE_URL":   "https://api.test.com",
+							},
+						},
+						Category:  "custom",
+						CreatedAt: 1234567890,
+					},
+				},
+				Current: "test-id",
+			},
+			"codex": {
+				Providers: map[string]Provider{},
+				Current:   "",
+			},
+		},
+	}
+
+	// 写入旧格式配置
+	oldData, err := json.MarshalIndent(oldConfig, "", "  ")
+	if err != nil {
+		t.Fatalf("序列化旧配置失败: %v", err)
+	}
+
+	if err := os.WriteFile(configPath, oldData, 0600); err != nil {
+		t.Fatalf("写入旧配置文件失败: %v", err)
+	}
+
+	// 2. 使用 Manager 加载（应该自动迁移）
+	manager, err := NewManagerWithDir(tmpDir)
+	if err != nil {
+		t.Fatalf("加载配置失败: %v", err)
+	}
+
+	// 3. 验证配置已迁移
+	providers := manager.ListProvidersForApp("claude")
+	if len(providers) != 1 {
+		t.Errorf("迁移后 Claude 提供商数量 = %d, want 1", len(providers))
+	}
+
+	provider, err := manager.GetProviderForApp("claude", "Test Provider")
+	if err != nil {
+		t.Errorf("获取迁移后的提供商失败: %v", err)
+	}
+
+	if provider.ID != "test-id" {
+		t.Errorf("提供商 ID = %s, want test-id", provider.ID)
+	}
+
+	// 4. 验证新格式文件结构（展平的）
+	newData, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("读取迁移后的配置文件失败: %v", err)
+	}
+
+	var rawConfig map[string]interface{}
+	if err := json.Unmarshal(newData, &rawConfig); err != nil {
+		t.Fatalf("解析迁移后的配置失败: %v", err)
+	}
+
+	// 验证是否是展平格式（直接在顶层有 "claude" 和 "codex"）
+	if _, ok := rawConfig["claude"]; !ok {
+		t.Error("新格式应该在顶层有 'claude' 键")
+	}
+
+	if _, ok := rawConfig["codex"]; !ok {
+		t.Error("新格式应该在顶层有 'codex' 键")
+	}
+
+	// 验证不应该有嵌套的 "apps" 键
+	if _, ok := rawConfig["apps"]; ok {
+		t.Error("新格式不应该有嵌套的 'apps' 键")
+	}
+
+	// 5. 验证归档文件是否创建
+	archiveDir := filepath.Join(tmpDir, "archive")
+	entries, err := os.ReadDir(archiveDir)
+	if err != nil {
+		t.Errorf("读取归档目录失败: %v", err)
+	} else if len(entries) == 0 {
+		t.Error("应该创建归档备份文件")
+	}
+}
+
+// TestNewFormatCompatibility 测试新格式的序列化和反序列化
+func TestNewFormatCompatibility(t *testing.T) {
+	tmpDir := t.TempDir()
+	manager, err := NewManagerWithDir(tmpDir)
+	if err != nil {
+		t.Fatalf("初始化失败: %v", err)
+	}
+
+	// 添加测试数据
+	err = manager.AddProviderForApp("claude", "Provider 1", "", "sk-test1", "https://api1.com", "custom")
+	if err != nil {
+		t.Fatalf("添加 Claude 提供商失败: %v", err)
+	}
+
+	err = manager.AddProviderForApp("codex", "Provider 2", "", "sk-test2", "https://api2.com", "custom")
+	if err != nil {
+		t.Fatalf("添加 Codex 提供商失败: %v", err)
+	}
+
+	// 读取配置文件
+	configPath := filepath.Join(tmpDir, "config.json")
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("读取配置文件失败: %v", err)
+	}
+
+	// 验证JSON格式
+	var rawConfig map[string]interface{}
+	if err := json.Unmarshal(data, &rawConfig); err != nil {
+		t.Fatalf("解析配置文件失败: %v", err)
+	}
+
+	// 验证展平格式
+	if _, ok := rawConfig["version"]; !ok {
+		t.Error("配置应该包含 'version' 字段")
+	}
+
+	if _, ok := rawConfig["claude"]; !ok {
+		t.Error("配置应该包含 'claude' 字段（展平格式）")
+	}
+
+	if _, ok := rawConfig["codex"]; !ok {
+		t.Error("配置应该包含 'codex' 字段（展平格式）")
+	}
+
+	// 重新加载并验证数据完整性
+	manager2, err := NewManagerWithDir(tmpDir)
+	if err != nil {
+		t.Fatalf("重新加载配置失败: %v", err)
+	}
+
+	claudeProviders := manager2.ListProvidersForApp("claude")
+	if len(claudeProviders) != 1 {
+		t.Errorf("Claude 提供商数量 = %d, want 1", len(claudeProviders))
+	}
+
+	codexProviders := manager2.ListProvidersForApp("codex")
+	if len(codexProviders) != 1 {
+		t.Errorf("Codex 提供商数量 = %d, want 1", len(codexProviders))
+	}
+}
+
+// TestBackupCreation 测试备份文件创建
+func TestBackupCreation(t *testing.T) {
+	tmpDir := t.TempDir()
+	manager, err := NewManagerWithDir(tmpDir)
+	if err != nil {
+		t.Fatalf("初始化失败: %v", err)
+	}
+
+	// 添加第一个提供商（创建配置文件）
+	err = manager.AddProviderForApp("claude", "Provider 1", "", "sk-test1", "https://api1.com", "custom")
+	if err != nil {
+		t.Fatalf("添加提供商失败: %v", err)
+	}
+
+	// 添加第二个提供商（应该创建备份）
+	err = manager.AddProviderForApp("claude", "Provider 2", "", "sk-test2", "https://api2.com", "custom")
+	if err != nil {
+		t.Fatalf("添加第二个提供商失败: %v", err)
+	}
+
+	// 验证备份文件存在
+	configPath := filepath.Join(tmpDir, "config.json")
+	backupPath := configPath + ".bak.cli"
+
+	if _, err := os.Stat(backupPath); os.IsNotExist(err) {
+		t.Error("应该创建 .bak.cli 备份文件")
+	}
+
+	// 验证备份内容（应该只包含第一个提供商）
+	backupData, err := os.ReadFile(backupPath)
+	if err != nil {
+		t.Fatalf("读取备份文件失败: %v", err)
+	}
+
+	var backupConfig MultiAppConfig
+	if err := json.Unmarshal(backupData, &backupConfig); err != nil {
+		t.Fatalf("解析备份文件失败: %v", err)
+	}
+
+	claudeApp := backupConfig.Apps["claude"]
+	if len(claudeApp.Providers) != 1 {
+		t.Errorf("备份文件中的提供商数量 = %d, want 1", len(claudeApp.Providers))
+	}
+}

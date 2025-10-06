@@ -66,7 +66,7 @@ func NewManagerWithDir(customDir string) (*Manager, error) {
 	return manager, nil
 }
 
-// Load 加载配置文件
+// Load 加载配置文件（支持向后兼容和自动迁移）
 func (m *Manager) Load() error {
 	if !utils.FileExists(m.configPath) {
 		// 配置文件不存在，创建默认配置（仅内存，不立即保存）
@@ -93,28 +93,70 @@ func (m *Manager) Load() error {
 		return fmt.Errorf("读取配置文件失败: %w", err)
 	}
 
-	m.config = &MultiAppConfig{}
-	if err := json.Unmarshal(data, m.config); err != nil {
+	// 先检测是旧格式还是新格式
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
 		return fmt.Errorf("解析配置文件失败: %w", err)
 	}
 
-	// 确保 Apps map 已初始化
-	if m.config.Apps == nil {
-		m.config.Apps = make(map[string]ProviderManager)
-	}
+	// 检查是否存在 "apps" 键（旧格式）
+	if _, hasAppsKey := raw["apps"]; hasAppsKey {
+		// 旧格式：尝试解析为 OldMultiAppConfig
+		var oldConfig OldMultiAppConfig
+		if err := json.Unmarshal(data, &oldConfig); err == nil && oldConfig.Apps != nil && len(oldConfig.Apps) > 0 {
+			// 迁移到新格式
+			fmt.Println("检测到旧版配置格式，自动迁移到新格式...")
 
-	// 确保每个 app 的 Providers map 已初始化
-	for appName, app := range m.config.Apps {
-		if app.Providers == nil {
-			app.Providers = make(map[string]Provider)
-			m.config.Apps[appName] = app
+			// 创建归档备份
+			if err := m.archiveOldConfig(); err != nil {
+				fmt.Printf("警告: 归档旧配置失败: %v\n", err)
+			}
+
+			// 转换为新格式
+			m.config = &MultiAppConfig{
+				Version: 2,
+				Apps:    oldConfig.Apps,
+			}
+
+			// 确保每个 app 的 Providers map 已初始化
+			for appName, app := range m.config.Apps {
+				if app.Providers == nil {
+					app.Providers = make(map[string]Provider)
+					m.config.Apps[appName] = app
+				}
+			}
+
+			// 保存新格式
+			if err := m.Save(); err != nil {
+				return fmt.Errorf("保存迁移后的配置失败: %w", err)
+			}
+
+			fmt.Println("配置迁移完成")
+			return nil
 		}
 	}
 
-	return nil
+	// 新格式：尝试解析为 MultiAppConfig（展平格式）
+	m.config = &MultiAppConfig{}
+	if err := json.Unmarshal(data, m.config); err == nil {
+		// 成功解析为 v2 格式，检查是否有有效数据
+		if m.config.Apps != nil && len(m.config.Apps) > 0 {
+			// 确保每个 app 的 Providers map 已初始化
+			for appName, app := range m.config.Apps {
+				if app.Providers == nil {
+					app.Providers = make(map[string]Provider)
+					m.config.Apps[appName] = app
+				}
+			}
+			return nil
+		}
+	}
+
+	// 如果两种格式都解析失败，返回错误
+	return fmt.Errorf("解析配置文件失败: 不支持的配置格式")
 }
 
-// Save 保存配置文件（与 cc-switch 保持一致，先创建备份）
+// Save 保存配置文件（创建 CLI 专用备份）
 func (m *Manager) Save() error {
 	// 确保目录存在
 	dir := filepath.Dir(m.configPath)
@@ -122,9 +164,10 @@ func (m *Manager) Save() error {
 		return fmt.Errorf("创建配置目录失败: %w", err)
 	}
 
-	// 创建备份（如果文件已存在）
+	// 创建 CLI 专用备份（如果文件已存在）
+	// 使用 .bak.cli 后缀，避免与 cc-switch 的 .bak 冲突
 	if utils.FileExists(m.configPath) {
-		backupPath := m.configPath + ".bak"
+		backupPath := m.configPath + ".bak.cli"
 		data, err := os.ReadFile(m.configPath)
 		if err == nil {
 			_ = os.WriteFile(backupPath, data, 0600)
@@ -132,6 +175,37 @@ func (m *Manager) Save() error {
 	}
 
 	return utils.WriteJSONFile(m.configPath, m.config, 0600)
+}
+
+// archiveOldConfig 归档旧配置文件（迁移时使用）
+func (m *Manager) archiveOldConfig() error {
+	if !utils.FileExists(m.configPath) {
+		return nil
+	}
+
+	// 创建归档目录 ~/.cc-switch/archive
+	dir := filepath.Dir(m.configPath)
+	archiveDir := filepath.Join(dir, "archive")
+	if err := os.MkdirAll(archiveDir, 0755); err != nil {
+		return fmt.Errorf("创建归档目录失败: %w", err)
+	}
+
+	// 生成归档文件名（带时间戳）
+	timestamp := time.Now().Unix()
+	archivePath := filepath.Join(archiveDir, fmt.Sprintf("config.v2-old.backup.%d.json", timestamp))
+
+	// 复制文件到归档目录
+	data, err := os.ReadFile(m.configPath)
+	if err != nil {
+		return fmt.Errorf("读取配置文件失败: %w", err)
+	}
+
+	if err := os.WriteFile(archivePath, data, 0600); err != nil {
+		return fmt.Errorf("写入归档文件失败: %w", err)
+	}
+
+	fmt.Printf("已归档旧配置: %s\n", archivePath)
+	return nil
 }
 
 // AddProvider 添加新的供应商配置（默认为 Claude）
