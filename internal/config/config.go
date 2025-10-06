@@ -93,10 +93,59 @@ func (m *Manager) Load() error {
 		return fmt.Errorf("读取配置文件失败: %w", err)
 	}
 
+	// 如果文件为空，创建默认配置
+	if len(data) == 0 || string(data) == "" || string(data) == "{}" {
+		fmt.Println("配置文件为空，创建默认配置...")
+		m.config = &MultiAppConfig{
+			Version: 2,
+			Apps: map[string]ProviderManager{
+				"claude": {
+					Providers: make(map[string]Provider),
+					Current:   "",
+				},
+				"codex": {
+					Providers: make(map[string]Provider),
+					Current:   "",
+				},
+			},
+		}
+		// 保存默认配置
+		if err := m.Save(); err != nil {
+			return fmt.Errorf("保存默认配置失败: %w", err)
+		}
+		return nil
+	}
+
 	// 先检测是旧格式还是新格式
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(data, &raw); err != nil {
-		return fmt.Errorf("解析配置文件失败: %w", err)
+		// 解析失败，可能是损坏的文件，创建默认配置
+		fmt.Printf("警告: 配置文件损坏 (%v)，将创建默认配置\n", err)
+
+		// 备份损坏的文件
+		backupPath := m.configPath + ".corrupted." + fmt.Sprintf("%d", time.Now().Unix())
+		if err := os.WriteFile(backupPath, data, 0600); err == nil {
+			fmt.Printf("已备份损坏的配置到: %s\n", backupPath)
+		}
+
+		m.config = &MultiAppConfig{
+			Version: 2,
+			Apps: map[string]ProviderManager{
+				"claude": {
+					Providers: make(map[string]Provider),
+					Current:   "",
+				},
+				"codex": {
+					Providers: make(map[string]Provider),
+					Current:   "",
+				},
+			},
+		}
+		// 保存默认配置
+		if err := m.Save(); err != nil {
+			return fmt.Errorf("保存默认配置失败: %w", err)
+		}
+		return nil
 	}
 
 	// 检查是否存在 "apps" 键（旧格式）
@@ -150,10 +199,54 @@ func (m *Manager) Load() error {
 			}
 			return nil
 		}
+
+		// 解析成功但数据为空，创建默认配置
+		fmt.Println("配置文件数据为空，创建默认配置...")
+		m.config = &MultiAppConfig{
+			Version: 2,
+			Apps: map[string]ProviderManager{
+				"claude": {
+					Providers: make(map[string]Provider),
+					Current:   "",
+				},
+				"codex": {
+					Providers: make(map[string]Provider),
+					Current:   "",
+				},
+			},
+		}
+		if err := m.Save(); err != nil {
+			return fmt.Errorf("保存默认配置失败: %w", err)
+		}
+		return nil
 	}
 
-	// 如果两种格式都解析失败，返回错误
-	return fmt.Errorf("解析配置文件失败: 不支持的配置格式")
+	// 如果两种格式都解析失败，备份并创建默认配置
+	fmt.Println("警告: 配置格式不支持，将创建默认配置")
+
+	// 备份不支持的格式文件
+	backupPath := m.configPath + ".unsupported." + fmt.Sprintf("%d", time.Now().Unix())
+	if err := os.WriteFile(backupPath, data, 0600); err == nil {
+		fmt.Printf("已备份不支持的配置到: %s\n", backupPath)
+	}
+
+	m.config = &MultiAppConfig{
+		Version: 2,
+		Apps: map[string]ProviderManager{
+			"claude": {
+				Providers: make(map[string]Provider),
+				Current:   "",
+			},
+			"codex": {
+				Providers: make(map[string]Provider),
+				Current:   "",
+			},
+		},
+	}
+	if err := m.Save(); err != nil {
+		return fmt.Errorf("保存默认配置失败: %w", err)
+	}
+	return nil
 }
 
 // Save 保存配置文件（创建 CLI 专用备份）
