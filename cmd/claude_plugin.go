@@ -9,8 +9,9 @@ import (
 
 // claudePluginCmd represents the claude-plugin command
 var claudePluginCmd = &cobra.Command{
-	Use:   "claude-plugin",
-	Short: "Claude 插件配置管理",
+	Use:     "claude-plugin [status|apply|remove|check]",
+	Aliases: []string{"plugin", "pl"},
+	Short:   "Claude 插件配置管理",
 	Long: `Claude 插件配置管理命令。
 
 Claude 插件集成说明:
@@ -23,7 +24,20 @@ Claude 插件集成说明:
   cc-switch claude-plugin status    # 查看配置状态
   cc-switch claude-plugin apply     # 应用配置
   cc-switch claude-plugin remove    # 移除配置
-  cc-switch claude-plugin check     # 检查是否已应用`,
+  cc-switch claude-plugin check     # 检查是否已应用
+
+简化用法:
+  ccs plugin status                 # 查看状态（推荐）
+  ccs plugin apply                  # 应用配置（推荐）
+  ccs plugin remove                 # 移除配置（推荐）
+  ccs pl status                     # 最短形式`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		// 无参数时默认显示状态
+		if len(args) == 0 {
+			return runClaudePluginStatus()
+		}
+		return nil
+	},
 }
 
 // claudePluginStatusCmd represents the claude-plugin status command

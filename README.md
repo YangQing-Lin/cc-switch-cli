@@ -134,6 +134,39 @@ ccs version
 
 ## 使用方法
 
+### 命令简化 ⚡
+
+为提升使用体验，大部分命令都提供了简化别名，让您输入更快捷：
+
+| 完整命令 | 简化别名 | 用途 | 示例 |
+|---------|---------|------|------|
+| `portable` | `port`, `p` | 便携版管理 | `ccs p`, `ccs port on` |
+| `codex` | `cx`, `c` | Codex 配置 | `ccs cx list`, `ccs c add` |
+| `config` | `cfg` | Claude 配置 | `ccs cfg add` |
+| `claude-plugin` | `plugin`, `pl` | 插件管理 | `ccs plugin apply`, `ccs pl status` |
+
+**推荐使用简化命令：**
+```bash
+# 便携版操作（推荐使用 port）
+ccs port              # 查看状态
+ccs port on           # 启用
+ccs port off          # 禁用
+
+# Codex 配置（推荐使用 cx）
+ccs cx list           # 列出配置
+ccs cx add mycodex    # 添加配置
+ccs cx switch mycodex # 切换配置
+
+# Claude 配置（使用 cfg）
+ccs cfg add myconfig  # 添加配置
+ccs cfg delete old    # 删除配置
+
+# 插件管理（推荐使用 plugin）
+ccs plugin status     # 查看状态
+ccs plugin apply      # 应用配置
+ccs plugin remove     # 移除配置
+```
+
 ### 交互式 TUI 界面 (推荐)
 
 启动交互式终端用户界面:
@@ -249,7 +282,14 @@ ccs config delete my-config --force
 #### 添加 Codex 配置
 
 ```bash
+# 使用完整命令
 ccs codex add my-codex \
+  --apikey "sk-ant-xxxxx" \
+  --base-url "https://api.anthropic.com" \
+  --model "claude-3-5-sonnet-20241022"
+
+# 使用简化命令（推荐）
+ccs cx add my-codex \
   --apikey "sk-ant-xxxxx" \
   --base-url "https://api.anthropic.com" \
   --model "claude-3-5-sonnet-20241022"
@@ -258,13 +298,15 @@ ccs codex add my-codex \
 #### 列出 Codex 配置
 
 ```bash
-ccs codex list
+ccs codex list    # 完整命令
+ccs cx list       # 简化命令（推荐）
 ```
 
 #### 切换 Codex 配置
 
 ```bash
-ccs codex switch my-codex
+ccs codex switch my-codex  # 完整命令
+ccs cx switch my-codex     # 简化命令（推荐）
 ```
 
 输出：
@@ -282,7 +324,13 @@ ccs codex switch my-codex
 #### 更新 Codex 配置
 
 ```bash
+# 完整命令
 ccs codex update my-codex \
+  --model "claude-opus-4-20250514" \
+  --apikey "sk-new-key"
+
+# 简化命令（推荐）
+ccs cx update my-codex \
   --model "claude-opus-4-20250514" \
   --apikey "sk-new-key"
 ```
@@ -290,7 +338,8 @@ ccs codex update my-codex \
 #### 删除 Codex 配置
 
 ```bash
-ccs codex delete my-codex -f
+ccs codex delete my-codex -f  # 完整命令
+ccs cx delete my-codex -f     # 简化命令（推荐）
 ```
 
 **Codex 配置特点：**
@@ -298,6 +347,7 @@ ccs codex delete my-codex -f
 - ⚡ **原子操作** - 事务性写入，失败自动回滚
 - 🎯 **模型支持** - 可自定义使用的 Claude 模型
 - 🛡️ **SSOT 模式** - 与 Rust 后端架构完全一致
+- ⚡ **命令简化** - 支持 `cx` 和 `c` 别名，快速操作
 
 ### 配置备份与恢复 🆕
 
