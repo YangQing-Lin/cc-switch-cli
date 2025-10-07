@@ -357,24 +357,14 @@ ccs backup restore backup_20251006_143528
 
 便携版模式允许您将配置文件存储在程序所在目录，适用于 USB 便携设备或不想污染用户主目录的场景。
 
-#### 启用便携版模式
-
-```bash
-# 启用便携版模式（在程序目录创建 portable.ini）
-ccs portable enable
-
-# 输出示例：
-# ✓ 便携版模式已启用
-#   标记文件: D:\Programs\cc-switch\portable.ini
-#
-# 配置目录: D:\Programs\cc-switch\.cc-switch
-```
-
 #### 查看便携版状态
 
 ```bash
-# 查看当前是否为便携版模式
-ccs portable status
+# 查看当前是否为便携版模式（以下命令等效）
+ccs portable          # 完整命令
+ccs portable status   # 明确指定状态
+ccs port              # 简化版本（推荐）
+ccs p                 # 最短版本
 
 # 输出示例：
 # 便携版模式状态
@@ -389,11 +379,30 @@ ccs portable status
 # 配置状态: 已存在
 ```
 
+#### 启用便携版模式
+
+```bash
+# 启用便携版模式（在程序目录创建 portable.ini）
+ccs portable enable   # 完整命令
+ccs portable on       # 简写
+ccs port on           # 简化版本（推荐）
+ccs p on              # 最短版本
+
+# 输出示例：
+# ✓ 便携版模式已启用
+#   标记文件: D:\Programs\cc-switch\portable.ini
+#
+# 配置目录: D:\Programs\cc-switch\.cc-switch
+```
+
 #### 禁用便携版模式
 
 ```bash
 # 禁用便携版模式（删除 portable.ini）
-ccs portable disable
+ccs portable disable  # 完整命令
+ccs portable off      # 简写
+ccs port off          # 简化版本（推荐）
+ccs p off             # 最短版本
 
 # 输出示例：
 # ✓ 便携版模式已禁用
@@ -407,6 +416,7 @@ ccs portable disable
 - 🔄 **即时切换** - 创建/删除 `portable.ini` 文件即可切换模式
 - 💼 **便于携带** - 整个程序目录可以复制到 USB 设备
 - 🔄 **迁移友好** - 支持使用导入/导出功能在普通模式和便携版间迁移配置
+- ⚡ **命令简化** - 支持多种简写形式（`portable`/`port`/`p`），更快捷
 
 ### Claude 插件集成 🆕
 
