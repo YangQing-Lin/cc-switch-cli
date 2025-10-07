@@ -8,7 +8,7 @@
 ### 配置文件兼容性
 - [x] 使用相同的配置文件路径 `~/.cc-switch/config.json`
 - [x] 兼容 v2 版本配置格式
-- [ ] 支持从 v1 自动升级到 v2
+- [x] 支持从 v1 自动升级到 v2（自动检测并迁移）
 - [x] 使用相同的数据结构（Provider、ProviderManager、MultiAppConfig）
 
 ### 单一数据源（SSOT）原则
@@ -107,10 +107,12 @@
 - [x] 配置文件权限设置（600）
 - [x] 敏感信息保护
 
-### 9. 便携版支持
+### 9. 便携版支持 ✅
 
-- [ ] 检测 portable.ini 文件
-- [ ] 便携版模式（配置存储在程序目录）
+- [x] 检测 portable.ini 文件
+- [x] 便携版模式（配置存储在程序目录）
+- [x] 便携版启用/禁用命令（portable enable/disable）
+- [x] 便携版状态查看（portable status）
 
 ### 10. 其他功能
 
@@ -150,19 +152,19 @@
 - CLI 归档到 `archive/config.v2-old.backup.<timestamp>.json`
 - GUI 归档到 `archive/<timestamp>/<category>/` 结构
 
-### 12. Claude 插件集成 🆕
+### 12. Claude 插件集成 ✅
 
 > 基于 GUI v3.3.1+ 新增功能
 
-- [ ] Claude 插件配置管理（`~/.claude/config.json`）
-- [ ] 检测 Claude 插件配置状态
-- [ ] 读取 Claude 插件配置内容
-- [ ] 应用配置到 Claude 插件（写入固定 JSON）
-- [ ] 移除 Claude 插件配置（清除特定字段）
-- [ ] 检测配置是否已应用（验证 `primaryApiKey: "any"`）
-- [ ] 切换供应商时自动同步 Claude 插件
-- [ ] 第三方供应商自动应用配置
-- [ ] 官方供应商自动移除配置
+- [x] Claude 插件配置管理（`~/.claude/config.json`）
+- [x] 检测 Claude 插件配置状态（claude-plugin status）
+- [x] 读取 Claude 插件配置内容
+- [x] 应用配置到 Claude 插件（claude-plugin apply）
+- [x] 移除 Claude 插件配置（claude-plugin remove）
+- [x] 检测配置是否已应用（claude-plugin check）
+- [ ] 切换供应商时自动同步 Claude 插件（待实现）
+- [ ] 第三方供应商自动应用配置（待实现）
+- [ ] 官方供应商自动移除配置（待实现）
 
 ## 命令行接口设计
 
@@ -332,7 +334,7 @@ type MultiAppConfig struct {
 - ✅ 配置迁移和去重
 - ✅ 自定义配置目录支持
 
-#### P2 增强功能（大部分完成）
+#### P2 增强功能（100% 完成）✅
 - ✅ 多语言支持（i18n 框架和中英文翻译）
 - ✅ 自动更新检查（打开 GitHub Releases）
 - ✅ 版本信息显示（支持构建时注入）
@@ -340,12 +342,13 @@ type MultiAppConfig struct {
 - ✅ 配置目录管理（config-dir 和 open-config 命令）
 - ✅ 配置文件权限管理（敏感文件 0600）
 - ✅ 详细模式输出（--verbose 参数，支持 check/validate/show 命令）
-- 🔲 便携版支持（portable.ini 检测）
+- ✅ 便携版支持（portable.ini 检测、启用/禁用命令）
 
-#### P3 扩展功能（GUI v3.3.1+ 新增）
-- 🔲 Claude 插件配置管理（`~/.claude/config.json`）
-- 🔲 Claude 插件状态检测
-- 🔲 自动同步 Claude 插件配置
+#### P3 扩展功能（GUI v3.3.1+ 新增）（大部分完成）
+- ✅ Claude 插件配置管理（`~/.claude/config.json`）
+- ✅ Claude 插件状态检测（status 命令）
+- ✅ Claude 插件应用/移除（apply/remove 命令）
+- 🔲 切换供应商时自动同步 Claude 插件配置
 - 🔲 供应商预设 `apiKeyUrl` 字段支持
 
 ### 项目里程碑

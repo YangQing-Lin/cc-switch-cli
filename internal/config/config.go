@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/YangQing-Lin/cc-switch-cli/internal/portable"
 	"github.com/YangQing-Lin/cc-switch-cli/internal/utils"
 	"github.com/google/uuid"
 )
@@ -116,7 +117,7 @@ func (m *Manager) Load() error {
 		return nil
 	}
 
-	// 先检测是旧格式还是新格式
+	// 先检测配置格式
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(data, &raw); err != nil {
 		// 解析失败，可能是损坏的文件，创建默认配置
@@ -148,8 +149,53 @@ func (m *Manager) Load() error {
 		return nil
 	}
 
-	// 检查是否存在 "apps" 键（旧格式）
-	if _, hasAppsKey := raw["apps"]; hasAppsKey {
+	// 检查版本号，判断是 v1 还是 v2
+	hasVersion := false
+	if versionRaw, exists := raw["version"]; exists {
+		var version int
+		if err := json.Unmarshal(versionRaw, &version); err == nil {
+			hasVersion = true
+		}
+	}
+
+	// 如果没有 version 字段且没有 apps 字段，可能是 v1 格式
+	_, hasAppsKey := raw["apps"]
+	if !hasVersion && !hasAppsKey {
+		// 尝试解析为 v1 格式（ProviderManager）
+		var v1Config ProviderManager
+		if err := json.Unmarshal(data, &v1Config); err == nil && v1Config.Providers != nil {
+			fmt.Println("检测到 v1 配置格式，自动迁移到 v2...")
+
+			// 创建备份
+			backupPath := m.configPath + ".v1.backup." + fmt.Sprintf("%d", time.Now().Unix())
+			if err := os.WriteFile(backupPath, data, 0600); err == nil {
+				fmt.Printf("已备份 v1 配置到: %s\n", backupPath)
+			}
+
+			// 转换为 v2 格式
+			m.config = &MultiAppConfig{
+				Version: 2,
+				Apps: map[string]ProviderManager{
+					"claude": v1Config,
+					"codex": {
+						Providers: make(map[string]Provider),
+						Current:   "",
+					},
+				},
+			}
+
+			// 保存新格式
+			if err := m.Save(); err != nil {
+				return fmt.Errorf("保存迁移后的配置失败: %w", err)
+			}
+
+			fmt.Println("v1 配置迁移完成")
+			return nil
+		}
+	}
+
+	// 检查是否存在 "apps" 键（v2 旧格式）
+	if hasAppsKey {
 		// 旧格式：尝试解析为 OldMultiAppConfig
 		var oldConfig OldMultiAppConfig
 		if err := json.Unmarshal(data, &oldConfig); err == nil && oldConfig.Apps != nil && len(oldConfig.Apps) > 0 {
@@ -1048,6 +1094,15 @@ func MaskToken(token string) string {
 
 // GetConfigPath 获取配置文件路径（与 cc-switch 一致）
 func GetConfigPath() (string, error) {
+	// 检测便携版模式
+	if portable.IsPortableMode() {
+		configDir, err := portable.GetPortableConfigDir()
+		if err != nil {
+			return "", fmt.Errorf("获取便携版配置目录失败: %w", err)
+		}
+		return filepath.Join(configDir, "config.json"), nil
+	}
+
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("获取用户主目录失败: %w", err)

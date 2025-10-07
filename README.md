@@ -353,12 +353,139 @@ ccs backup restore backup_20251006_143528
 - 🔍 **格式验证** - 恢复前验证备份文件有效性
 - 📊 **详细信息** - 显示备份时间、大小、路径
 
+### 便携版模式 🆕
+
+便携版模式允许您将配置文件存储在程序所在目录，适用于 USB 便携设备或不想污染用户主目录的场景。
+
+#### 启用便携版模式
+
+```bash
+# 启用便携版模式（在程序目录创建 portable.ini）
+ccs portable enable
+
+# 输出示例：
+# ✓ 便携版模式已启用
+#   标记文件: D:\Programs\cc-switch\portable.ini
+#
+# 配置目录: D:\Programs\cc-switch\.cc-switch
+```
+
+#### 查看便携版状态
+
+```bash
+# 查看当前是否为便携版模式
+ccs portable status
+
+# 输出示例：
+# 便携版模式状态
+# ==============
+#
+# ✓ 便携版模式：已启用
+#
+# 程序目录: D:\Programs\cc-switch
+# 标记文件: D:\Programs\cc-switch\portable.ini (存在)
+#
+# 配置文件: D:\Programs\cc-switch\.cc-switch\config.json
+# 配置状态: 已存在
+```
+
+#### 禁用便携版模式
+
+```bash
+# 禁用便携版模式（删除 portable.ini）
+ccs portable disable
+
+# 输出示例：
+# ✓ 便携版模式已禁用
+#   已删除: D:\Programs\cc-switch\portable.ini
+#
+# 配置文件将使用: C:\Users\username\.cc-switch\config.json
+```
+
+**便携版特点：**
+- 📁 **独立配置** - 配置文件存储在程序目录的 `.cc-switch` 子目录
+- 🔄 **即时切换** - 创建/删除 `portable.ini` 文件即可切换模式
+- 💼 **便于携带** - 整个程序目录可以复制到 USB 设备
+- 🔄 **迁移友好** - 支持使用导入/导出功能在普通模式和便携版间迁移配置
+
+### Claude 插件集成 🆕
+
+管理 Claude 桌面应用的插件配置（`~/.claude/config.json`），适用于需要使用第三方 API 服务的场景。
+
+#### 查看插件状态
+
+```bash
+# 查看 Claude 插件配置状态
+ccs claude-plugin status
+
+# 输出示例：
+# Claude 插件配置状态
+# ===================
+#
+# 配置文件: C:\Users\username\.claude\config.json
+# 文件状态: ✓ 存在
+# 配置状态: ✓ 已应用（由 cc-switch 管理）
+```
+
+#### 应用插件配置
+
+```bash
+# 应用 Claude 插件配置（用于第三方 API）
+ccs claude-plugin apply
+
+# 输出示例：
+# ✓ Claude 插件配置已应用
+#   配置文件: C:\Users\username\.claude\config.json
+#
+# 说明:
+#   - 已写入 primaryApiKey 字段
+#   - 第三方 API 服务现在可以正常工作
+```
+
+#### 移除插件配置
+
+```bash
+# 移除 Claude 插件配置（恢复官方 API）
+ccs claude-plugin remove
+
+# 输出示例：
+# ✓ Claude 插件配置已移除
+#   配置文件: C:\Users\username\.claude\config.json
+#
+# 说明:
+#   - 已删除 primaryApiKey 字段
+#   - 其他配置字段已保留
+#   - 官方 API 服务现在可以正常工作
+```
+
+#### 检查配置状态
+
+```bash
+# 检查配置是否已正确应用
+ccs claude-plugin check
+
+# 输出示例：
+# ✓ Claude 插件配置已正确应用
+#   状态: 由 cc-switch 管理
+```
+
+**插件集成特点：**
+- 🔧 **精准管理** - 只管理 `primaryApiKey` 字段，不影响其他配置
+- 🛡️ **安全操作** - 使用原子文件写入，保证配置安全
+- 🔄 **灵活切换** - 轻松在官方 API 和第三方 API 间切换
+- 📝 **状态可查** - 随时查看当前配置状态
+
 ## 配置文件
 
 配置文件位置：
 
+**普通模式：**
 - **Windows**: `%USERPROFILE%\.cc-switch\config.json`
 - **macOS/Linux**: `~/.cc-switch/config.json`
+
+**便携版模式：**
+- **所有平台**: `<程序目录>\.cc-switch\config.json`
+- 需要在程序目录下创建 `portable.ini` 文件以启用便携版模式
 
 配置文件格式：
 ```json
