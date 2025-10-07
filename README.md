@@ -513,7 +513,7 @@ ccs claude-plugin check
 
 ## 与cc-switch GUI版本的兼容性
 
-cc-switch-cli与[cc-switch](https://github.com/YangQing-Lin/cc-switch) GUI版本完全兼容：
+cc-switch-cli与[cc-switch](https://github.com/farion1231/cc-switch) GUI版本完全兼容：
 
 - ✅ 共享相同的配置文件格式
 - ✅ 支持相同的配置结构
@@ -654,4 +654,4 @@ MIT许可证
 
 ## 相关项目
 
-- [cc-switch](https://github.com/YangQing-Lin/cc-switch) - 带有图形界面的GUI版本，用于配置管理
+- [cc-switch](https://github.com/farion1231/cc-switch) - 带有图形界面的GUI版本，用于配置管理

@@ -46,3 +46,4 @@ Thumbs.db
 # Local Ignore
 .cc-switch-config-sample
 跨平台CLI应用设计要点.md
+portable.ini
