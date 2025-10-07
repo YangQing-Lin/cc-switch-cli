@@ -118,7 +118,7 @@
 - [x] 检查更新（打开 GitHub Releases）
 - [x] 配置状态检查
 - [x] 详细错误信息输出
-- [ ] 调试模式日志
+- [x] 详细模式/调试输出（--verbose 参数）
 
 ### 11. 备份恢复功能 ✅
 
@@ -332,15 +332,15 @@ type MultiAppConfig struct {
 - ✅ 配置迁移和去重
 - ✅ 自定义配置目录支持
 
-#### P2 增强功能（部分完成）
+#### P2 增强功能（大部分完成）
 - ✅ 多语言支持（i18n 框架和中英文翻译）
 - ✅ 自动更新检查（打开 GitHub Releases）
 - ✅ 版本信息显示（支持构建时注入）
 - ✅ 应用设置管理（settings 命令）
 - ✅ 配置目录管理（config-dir 和 open-config 命令）
 - ✅ 配置文件权限管理（敏感文件 0600）
+- ✅ 详细模式输出（--verbose 参数，支持 check/validate/show 命令）
 - 🔲 便携版支持（portable.ini 检测）
-- 🔲 详细调试日志（--debug 模式）
 
 #### P3 扩展功能（GUI v3.3.1+ 新增）
 - 🔲 Claude 插件配置管理（`~/.claude/config.json`）
