@@ -13,10 +13,11 @@ import (
 )
 
 var (
-	apiKey   string
-	baseURL  string
-	category string
-	appName  string
+	apiKey            string
+	baseURL           string
+	category          string
+	appName           string
+	defaultSonnetModel string
 )
 
 var addCmd = &cobra.Command{
@@ -72,6 +73,7 @@ var addCmd = &cobra.Command{
 			strings.TrimSpace(apiKey),
 			strings.TrimSpace(baseURL),
 			category,
+			strings.TrimSpace(defaultSonnetModel),
 		); err != nil {
 			return fmt.Errorf("添加配置失败: %w", err)
 		}
@@ -86,6 +88,7 @@ func init() {
 	addCmd.Flags().StringVar(&baseURL, "base-url", "", "Base URL")
 	addCmd.Flags().StringVar(&category, "category", "custom", "Provider category (official/cn_official/aggregator/third_party/custom)")
 	addCmd.Flags().StringVar(&appName, "app", "claude", "Application (claude/codex)")
+	addCmd.Flags().StringVar(&defaultSonnetModel, "default-sonnet-model", "", "Default Sonnet model (optional, for Claude only)")
 }
 
 // promptSecret 提示用户输入敏感信息（隐藏输入）

@@ -27,7 +27,7 @@ func TestBasicProviderOperations(t *testing.T) {
 
 	// 测试添加提供商
 	t.Run("AddProvider", func(t *testing.T) {
-		err := manager.AddProviderForApp("claude", "Test Provider", "", "test-token", "", "test")
+		err := manager.AddProviderForApp("claude", "Test Provider", "", "test-token", "", "test", "")
 		if err != nil {
 			t.Errorf("添加提供商失败: %v", err)
 		}
@@ -46,8 +46,8 @@ func TestBasicProviderOperations(t *testing.T) {
 	// 测试列出提供商
 	t.Run("ListProviders", func(t *testing.T) {
 		// 添加更多提供商
-		manager.AddProviderForApp("claude", "Provider 2", "", "token-2", "", "test")
-		manager.AddProviderForApp("claude", "Provider 3", "", "token-3", "", "test")
+		manager.AddProviderForApp("claude", "Provider 2", "", "token-2", "", "test", "")
+		manager.AddProviderForApp("claude", "Provider 3", "", "token-3", "", "test", "")
 
 		providers := manager.ListProvidersForApp("claude")
 		if len(providers) != 3 {
@@ -84,7 +84,7 @@ func TestProviderPersistence(t *testing.T) {
 		t.Fatalf("创建配置管理器失败: %v", err)
 	}
 
-	err = manager1.AddProviderForApp("claude", "Persistent Provider", "", "persistent-token", "", "test")
+	err = manager1.AddProviderForApp("claude", "Persistent Provider", "", "persistent-token", "", "test", "")
 	if err != nil {
 		t.Fatalf("添加提供商失败: %v", err)
 	}
@@ -122,13 +122,13 @@ func TestMultiAppSupport(t *testing.T) {
 	}
 
 	// 添加 Claude 提供商
-	err = manager.AddProviderForApp("claude", "Claude Provider", "", "claude-token", "", "claude")
+	err = manager.AddProviderForApp("claude", "Claude Provider", "", "claude-token", "", "claude", "")
 	if err != nil {
 		t.Fatalf("添加 Claude 提供商失败: %v", err)
 	}
 
 	// 添加 Codex 提供商
-	err = manager.AddProviderForApp("codex", "Codex Provider", "", "codex-key", "https://api.example.com", "codex")
+	err = manager.AddProviderForApp("codex", "Codex Provider", "", "codex-key", "https://api.example.com", "codex", "")
 	if err != nil {
 		t.Fatalf("添加 Codex 提供商失败: %v", err)
 	}
@@ -170,7 +170,7 @@ func TestConfigFileStructure(t *testing.T) {
 	}
 
 	// 添加提供商
-	err = manager.AddProviderForApp("claude", "Test Provider", "", "test-token", "", "test")
+	err = manager.AddProviderForApp("claude", "Test Provider", "", "test-token", "", "test", "")
 	if err != nil {
 		t.Fatalf("添加提供商失败: %v", err)
 	}
@@ -223,7 +223,7 @@ func TestProviderValidation(t *testing.T) {
 
 	// 测试添加空名称的提供商（当前实现可能允许）
 	t.Run("EmptyName", func(t *testing.T) {
-		err := manager.AddProviderForApp("claude", "", "", "token", "", "test")
+		err := manager.AddProviderForApp("claude", "", "", "token", "", "test", "")
 		// 记录行为，不强制要求失败
 		if err != nil {
 			t.Logf("添加空名称提供商失败（预期行为）: %v", err)
@@ -234,7 +234,7 @@ func TestProviderValidation(t *testing.T) {
 
 	// 测试添加空 token 的提供商（当前实现可能允许）
 	t.Run("EmptyToken", func(t *testing.T) {
-		err := manager.AddProviderForApp("claude", "Test", "", "", "", "test")
+		err := manager.AddProviderForApp("claude", "Test", "", "", "", "test", "")
 		// 记录行为，不强制要求失败
 		if err != nil {
 			t.Logf("添加空 token 提供商失败（预期行为）: %v", err)
@@ -262,7 +262,7 @@ func TestConcurrentAccess(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		name := "Provider" + string(rune('A'+i))
 		token := "token-" + string(rune('1'+i))
-		err := manager.AddProviderForApp("claude", name, "", token, "", "test")
+		err := manager.AddProviderForApp("claude", name, "", token, "", "test", "")
 		if err != nil {
 			t.Errorf("添加提供商 %s 失败: %v", name, err)
 		}

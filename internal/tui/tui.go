@@ -224,6 +224,7 @@ func (m *Model) submitForm() {
 	websiteURL := m.inputs[1].Value()
 	token := m.inputs[2].Value()
 	baseURL := m.inputs[3].Value()
+	defaultSonnetModel := m.inputs[4].Value()
 
 	if name == "" {
 		m.err = errors.New(i18n.T("error.name_required"))
@@ -241,10 +242,10 @@ func (m *Model) submitForm() {
 	var err error
 	if m.mode == "edit" {
 		// Update provider
-		err = m.manager.UpdateProviderWithWebsite(m.currentApp, m.editName, name, websiteURL, token, baseURL, "custom")
+		err = m.manager.UpdateProviderForApp(m.currentApp, m.editName, name, websiteURL, token, baseURL, "custom", defaultSonnetModel)
 	} else {
 		// Add provider
-		err = m.manager.AddProviderWithWebsite(m.currentApp, name, websiteURL, token, baseURL, "custom")
+		err = m.manager.AddProviderForApp(m.currentApp, name, websiteURL, token, baseURL, "custom", defaultSonnetModel)
 	}
 
 	if err != nil {
@@ -469,7 +470,7 @@ func (m Model) viewForm() string {
 	}
 
 	// Form
-	labels := []string{"配置名称", "网站 (可选)", "API Token", "Base URL"}
+	labels := []string{"配置名称", "网站 (可选)", "API Token", "Base URL", "Default Sonnet Model (可选)"}
 	for i, label := range labels {
 		s.WriteString(lipgloss.NewStyle().Bold(true).Render(label+":") + "\n")
 		if i == m.focusIndex {
@@ -541,7 +542,7 @@ func (m Model) viewDelete() string {
 
 // Helper functions
 func (m *Model) initForm(provider *config.Provider) {
-	m.inputs = make([]textinput.Model, 4)
+	m.inputs = make([]textinput.Model, 5)
 	m.focusIndex = 0
 
 	// Name
@@ -570,6 +571,12 @@ func (m *Model) initForm(provider *config.Provider) {
 	m.inputs[3].CharLimit = 200
 	m.inputs[3].Width = 50
 
+	// Default Sonnet Model (optional, Claude only)
+	m.inputs[4] = textinput.New()
+	m.inputs[4].Placeholder = "例如: claude-3-5-sonnet-20241022 (可选)"
+	m.inputs[4].CharLimit = 100
+	m.inputs[4].Width = 50
+
 	// Fill existing data
 	if provider != nil {
 		m.inputs[0].SetValue(provider.Name)
@@ -577,8 +584,11 @@ func (m *Model) initForm(provider *config.Provider) {
 
 		token := config.ExtractTokenFromProvider(provider)
 		baseURL := config.ExtractBaseURLFromProvider(provider)
+		defaultSonnetModel := config.ExtractDefaultSonnetModelFromProvider(provider)
+
 		m.inputs[2].SetValue(token)
 		m.inputs[3].SetValue(baseURL)
+		m.inputs[4].SetValue(defaultSonnetModel)
 	}
 }
 

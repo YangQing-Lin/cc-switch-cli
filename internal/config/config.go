@@ -354,11 +354,11 @@ func (m *Manager) AddProvider(name, apiToken, baseURL, category string) error {
 
 // AddProviderWithWebsite 添加供应商配置（支持网站URL）
 func (m *Manager) AddProviderWithWebsite(appName, name, websiteURL, apiToken, baseURL, category string) error {
-	return m.AddProviderForApp(appName, name, websiteURL, apiToken, baseURL, category)
+	return m.AddProviderForApp(appName, name, websiteURL, apiToken, baseURL, category, "")
 }
 
 // AddProviderForApp 为指定应用添加供应商配置
-func (m *Manager) AddProviderForApp(appName, name, websiteURL, apiToken, baseURL, category string) error {
+func (m *Manager) AddProviderForApp(appName, name, websiteURL, apiToken, baseURL, category, defaultSonnetModel string) error {
 	// 确保应用存在
 	if _, exists := m.config.Apps[appName]; !exists {
 		m.config.Apps[appName] = ProviderManager{
@@ -384,11 +384,16 @@ func (m *Manager) AddProviderForApp(appName, name, websiteURL, apiToken, baseURL
 
 	switch appName {
 	case "claude":
+		envMap := map[string]interface{}{
+			"ANTHROPIC_AUTH_TOKEN": apiToken,
+			"ANTHROPIC_BASE_URL":   baseURL,
+		}
+		// 如果提供了 default-sonnet-model，添加到 env
+		if defaultSonnetModel != "" {
+			envMap["ANTHROPIC_DEFAULT_SONNET_MODEL"] = defaultSonnetModel
+		}
 		settingsConfig = map[string]interface{}{
-			"env": map[string]interface{}{
-				"ANTHROPIC_AUTH_TOKEN": apiToken,
-				"ANTHROPIC_BASE_URL":   baseURL,
-			},
+			"env": envMap,
 		}
 	case "codex":
 		// Codex 配置格式（符合 cc-switch 的格式）
@@ -823,6 +828,9 @@ func (m *Manager) writeClaudeConfig(provider *Provider) error {
 		if maxTokens, ok := envMap["CLAUDE_CODE_MAX_TOKENS"].(string); ok {
 			settings.Env.ClaudeCodeMaxTokens = maxTokens
 		}
+		if defaultSonnetModel, ok := envMap["ANTHROPIC_DEFAULT_SONNET_MODEL"].(string); ok {
+			settings.Env.AnthropicDefaultSonnetModel = defaultSonnetModel
+		}
 	}
 
 	// 保存设置
@@ -961,11 +969,11 @@ func (m *Manager) UpdateProvider(oldName, newName, apiToken, baseURL, category s
 
 // UpdateProviderWithWebsite 更新供应商配置（支持网站URL）
 func (m *Manager) UpdateProviderWithWebsite(appName, oldName, newName, websiteURL, apiToken, baseURL, category string) error {
-	return m.UpdateProviderForApp(appName, oldName, newName, websiteURL, apiToken, baseURL, category)
+	return m.UpdateProviderForApp(appName, oldName, newName, websiteURL, apiToken, baseURL, category, "")
 }
 
 // UpdateProviderForApp 更新指定应用的供应商配置
-func (m *Manager) UpdateProviderForApp(appName, oldName, newName, websiteURL, apiToken, baseURL, category string) error {
+func (m *Manager) UpdateProviderForApp(appName, oldName, newName, websiteURL, apiToken, baseURL, category, defaultSonnetModel string) error {
 	app, exists := m.config.Apps[appName]
 	if !exists {
 		return fmt.Errorf("应用 '%s' 不存在", appName)
@@ -1016,6 +1024,11 @@ func (m *Manager) UpdateProviderForApp(appName, oldName, newName, websiteURL, ap
 		if envMap, ok := targetProvider.SettingsConfig["env"].(map[string]interface{}); ok {
 			envMap["ANTHROPIC_AUTH_TOKEN"] = apiToken
 			envMap["ANTHROPIC_BASE_URL"] = baseURL
+			// 更新 ANTHROPIC_DEFAULT_SONNET_MODEL（如果提供）
+			if defaultSonnetModel != "" {
+				envMap["ANTHROPIC_DEFAULT_SONNET_MODEL"] = defaultSonnetModel
+			}
+			// 注意：不主动删除该字段，保留用户现有配置
 		}
 	case "codex":
 		if targetProvider.SettingsConfig == nil {
@@ -1250,6 +1263,22 @@ func ExtractBaseURLFromProvider(p *Provider) string {
 		re := regexp.MustCompile(`base_url\s*=\s*"([^"]+)"`)
 		if matches := re.FindStringSubmatch(configStr); len(matches) > 1 {
 			return matches[1]
+		}
+	}
+
+	return ""
+}
+
+// ExtractDefaultSonnetModelFromProvider 从 Provider 提取 Default Sonnet Model
+func ExtractDefaultSonnetModelFromProvider(p *Provider) string {
+	if p == nil {
+		return ""
+	}
+
+	// 仅适用于 Claude 格式
+	if envMap, ok := p.SettingsConfig["env"].(map[string]interface{}); ok {
+		if model, ok := envMap["ANTHROPIC_DEFAULT_SONNET_MODEL"].(string); ok {
+			return model
 		}
 	}
 

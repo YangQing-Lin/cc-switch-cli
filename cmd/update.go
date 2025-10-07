@@ -29,6 +29,7 @@ var updateCmd = &cobra.Command{
 		baseURL, _ := cmd.Flags().GetString("base-url")
 		category, _ := cmd.Flags().GetString("category")
 		appName, _ := cmd.Flags().GetString("app")
+		defaultSonnetModel, _ := cmd.Flags().GetString("default-sonnet-model")
 
 		// 创建管理器
 		manager, err := config.NewManager()
@@ -95,7 +96,7 @@ var updateCmd = &cobra.Command{
 		}
 
 		// 更新配置
-		if err := manager.UpdateProviderForApp(appName, oldName, newName, "", apiKey, baseURL, category); err != nil {
+		if err := manager.UpdateProviderForApp(appName, oldName, newName, "", apiKey, baseURL, category, defaultSonnetModel); err != nil {
 			return err
 		}
 
@@ -116,4 +117,5 @@ func init() {
 	updateCmd.Flags().String("base-url", "", "新的 Base URL")
 	updateCmd.Flags().String("category", "", "新的分类")
 	updateCmd.Flags().String("app", "claude", "应用名称 (claude 或 codex)")
+	updateCmd.Flags().String("default-sonnet-model", "", "Default Sonnet model (optional, for Claude only)")
 }

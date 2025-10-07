@@ -11,8 +11,11 @@ cc-switch-cli 是一个跨平台 Go CLI 工具，用于管理多个 Claude 中�
 ### 开发命令
 
 ```bash
-# 构建
-go build -o cc-switch.exe
+# 构建 (Linux/macOS)
+go build -o ccs
+
+# 构建 (Windows)
+go build -o ccs.exe
 
 # 运行测试
 go test ./...
@@ -32,34 +35,35 @@ go vet ./...
 
 ```bash
 # 启动交互式 TUI
-./cc-switch.exe
+./ccs          # Linux/macOS
+./ccs.exe      # Windows
 
 # 切换配置
-./cc-switch.exe <配置名称>
+./ccs <配置名称>
 
 # 查看版本
-./cc-switch.exe version
+./ccs version
 
 # 添加配置
-./cc-switch.exe config add <name>
+./ccs config add <name>
 
 # 删除配置
-./cc-switch.exe config delete <name>
+./ccs config delete <name>
 
 # 导出配置
-./cc-switch.exe export
+./ccs export
 
 # 导入配置
-./cc-switch.exe import <file>
+./ccs import <file>
 
 # 备份配置
-./cc-switch.exe backup
+./ccs backup
 
 # 检查配置有效性
-./cc-switch.exe check
+./ccs check
 
 # 使用自定义配置目录
-./cc-switch.exe --dir /path/to/config
+./ccs --dir /path/to/config
 ```
 
 ## 架构设计
@@ -181,8 +185,9 @@ type Provider struct {
 
 1. **路径处理**: 始终使用 `filepath.Join()` 而非字符串拼接
 2. **文件权限**: 敏感配置使用 `0600`，一般配置使用 `0644`
-3. **进程检测**: Windows 使用 `tasklist`，Unix 使用 `pgrep`
+3. **进程检测**: Windows 使用 `tasklist`，Unix/Linux 使用 `pgrep`
 4. **用户目录**: 使用 `os.UserHomeDir()` 获取跨平台主目录
+5. **开发环境**: 主要在 WSL2 (Ubuntu 20.04) 上开发和测试
 
 ### 配置文件格式
 

@@ -644,10 +644,14 @@ cc-switch-cli/
 - **TUI 组件**: [Bubbles](https://github.com/charmbracelet/bubbles) - 可复用组件
 - **样式美化**: [Lip Gloss](https://github.com/charmbracelet/lipgloss) - 终端样式
 
+### 开发环境
+
+本项目主要在 **WSL2 (Ubuntu 20.04 LTS)** 环境下开发和测试，同时确保跨平台兼容性。
+
 ### 构建项目
 
 ```bash
-# 为当前平台构建
+# 为当前平台构建 (Linux/macOS)
 go build -o ccs
 
 # 为Windows构建
