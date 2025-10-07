@@ -3,6 +3,19 @@ package config
 import (
 	"encoding/json"
 )
+// CustomEndpoint 自定义端点配置（与 GUI v3.5.0+ 兼容）
+type CustomEndpoint struct {
+	URL      string `json:"url"`
+	AddedAt  int64  `json:"addedAt"`
+	LastUsed *int64 `json:"lastUsed,omitempty"`
+}
+
+// ProviderMeta 供应商元数据（与 GUI v3.5.0+ 兼容）
+// 注意：此字段不写入 live 配置文件（如 ~/.config/claude_code_ext/settings.json），
+// 仅保存在 ~/.cc-switch/config-cli.json 中，用于在 GUI 和 CLI 之间共享自定义端点等元数据
+type ProviderMeta struct {
+	CustomEndpoints map[string]CustomEndpoint `json:"custom_endpoints,omitempty"`
+}
 
 // Provider 表示单个供应商配置（与 cc-switch 完全一致）
 type Provider struct {
