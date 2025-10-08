@@ -4,9 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/YangQing-Lin/cc-switch-cli/internal/backup"
 	"github.com/YangQing-Lin/cc-switch-cli/internal/config"
 	"github.com/YangQing-Lin/cc-switch-cli/internal/i18n"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -16,23 +18,25 @@ import (
 
 // Model TUI 主模型
 type Model struct {
-	manager        *config.Manager
-	providers      []config.Provider
-	cursor         int
-	width          int
-	height         int
-	err            error
-	message        string
-	mode           string // "list", "add", "edit", "delete", "app_select"
-	editName       string // 正在编辑的配置名称
-	deleteName     string // 要删除的配置名称
-	inputs         []textinput.Model
-	focusIndex     int
-	currentApp     string    // "claude" or "codex"
-	appCursor      int       // 应用选择光标 (0=Claude, 1=Codex)
-	lastModTime    time.Time // 配置文件最后修改时间
-	configPath     string    // 配置文件路径
-	configCorrupted bool     // 配置文件是否损坏
+	manager         *config.Manager
+	providers       []config.Provider
+	cursor          int
+	width           int
+	height          int
+	err             error
+	message         string
+	mode            string // "list", "add", "edit", "delete", "app_select", "backup_list"
+	editName        string // 正在编辑的配置名称
+	deleteName      string // 要删除的配置名称
+	inputs          []textinput.Model
+	focusIndex      int
+	currentApp      string          // "claude" or "codex"
+	appCursor       int             // 应用选择光标 (0=Claude, 1=Codex)
+	lastModTime     time.Time       // 配置文件最后修改时间
+	configPath      string          // 配置文件路径
+	configCorrupted bool            // 配置文件是否损坏
+	backupList      []backup.BackupInfo // 备份列表
+	backupCursor    int             // 备份列表光标
 }
 
 // tickMsg is sent on every tick for config refresh
@@ -136,6 +140,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.handleDeleteKeys(msg)
 		case "app_select":
 			return m.handleAppSelectKeys(msg)
+		case "backup_list":
+			return m.handleBackupListKeys(msg)
 		}
 	}
 
@@ -152,6 +158,8 @@ func (m Model) View() string {
 		return m.viewDelete()
 	case "app_select":
 		return m.viewAppSelect()
+	case "backup_list":
+		return m.viewBackupList()
 	}
 	return ""
 }
@@ -243,6 +251,33 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.message = "切换到 Codex"
 			m.err = nil
 		}
+	case "b":
+		// Create backup
+		backupID, err := backup.CreateBackup(m.configPath)
+		if err != nil {
+			m.err = fmt.Errorf("创建备份失败: %w", err)
+			m.message = ""
+		} else if backupID == "" {
+			m.err = errors.New("配置文件不存在，无法创建备份")
+			m.message = ""
+		} else {
+			m.message = "备份已创建: " + backupID
+			m.err = nil
+		}
+	case "l":
+		// List backups
+		configDir := filepath.Dir(m.configPath)
+		backups, err := backup.ListBackups(configDir)
+		if err != nil {
+			m.err = fmt.Errorf("读取备份列表失败: %w", err)
+			m.message = ""
+		} else {
+			m.backupList = backups
+			m.backupCursor = 0
+			m.mode = "backup_list"
+			m.message = ""
+			m.err = nil
+		}
 	}
 	return m, nil
 }
@@ -285,9 +320,9 @@ func (m Model) handleFormKeys(msg tea.KeyMsg) (bool, tea.Model, tea.Cmd) {
 
 func (m *Model) submitForm() {
 	name := m.inputs[0].Value()
-	websiteURL := m.inputs[1].Value()
-	token := m.inputs[2].Value()
-	baseURL := m.inputs[3].Value()
+	token := m.inputs[1].Value()
+	baseURL := m.inputs[2].Value()
+	websiteURL := m.inputs[3].Value()
 	defaultSonnetModel := m.inputs[4].Value()
 
 	if name == "" {
@@ -467,13 +502,25 @@ func (m Model) viewList() string {
 		"a: 添加",
 		"e: 编辑",
 		"d: 删除",
+		"b: 备份",
+		"l: 备份列表",
 		"t: 切换应用",
 		"c: Claude",
 		"x: Codex",
 		"r: 刷新",
 		"q: 退出",
 	}
-	s.WriteString(helpStyle.Render(strings.Join(helps, " • ")))
+
+	const itemsPerLine = 5
+	var helpLines []string
+	for i := 0; i < len(helps); i += itemsPerLine {
+		end := i + itemsPerLine
+		if end > len(helps) {
+			end = len(helps)
+		}
+		helpLines = append(helpLines, strings.Join(helps[i:end], " • "))
+	}
+	s.WriteString(helpStyle.Render(strings.Join(helpLines, "\n")))
 
 	return s.String()
 }
@@ -533,8 +580,8 @@ func (m Model) viewForm() string {
 		s.WriteString(errStyle.Render("✗ "+m.err.Error()) + "\n\n")
 	}
 
-	// Form
-	labels := []string{"配置名称", "网站 (可选)", "API Token", "Base URL", "Default Sonnet Model (可选)"}
+	// Form (必填字段在前，可选字段在后)
+	labels := []string{"配置名称", "API Token", "Base URL", "网站 (可选)", "Default Sonnet Model (可选)"}
 	for i, label := range labels {
 		s.WriteString(lipgloss.NewStyle().Bold(true).Render(label+":") + "\n")
 		if i == m.focusIndex {
@@ -604,38 +651,152 @@ func (m Model) viewDelete() string {
 	return s.String()
 }
 
+// viewBackupList renders the backup list view
+func (m Model) viewBackupList() string {
+	var s strings.Builder
+
+	title := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("#007AFF")).
+		Padding(0, 1).
+		Render("备份列表")
+	s.WriteString(title + "\n\n")
+
+	// Status message
+	if m.err != nil {
+		errStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF3B30")).Bold(true)
+		s.WriteString(errStyle.Render("✗ "+m.err.Error()) + "\n\n")
+	} else if m.message != "" {
+		msgStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#34C759")).Bold(true)
+		s.WriteString(msgStyle.Render("✓ "+m.message) + "\n\n")
+	}
+
+	// Backup list
+	if len(m.backupList) == 0 {
+		s.WriteString("暂无备份文件\n\n")
+	} else {
+		for i, b := range m.backupList {
+			isCursor := i == m.backupCursor
+
+			// 备份文件名
+			filename := filepath.Base(b.Path)
+
+			// 标记自动备份
+			backupType := ""
+			if strings.HasPrefix(filename, backup.AutoBackupPrefix) {
+				backupType = " (自动)"
+			} else {
+				backupType = " (手动)"
+			}
+
+			displayName := filename + backupType
+
+			if isCursor {
+				displayName = lipgloss.NewStyle().
+					Background(lipgloss.Color("#007AFF")).
+					Foreground(lipgloss.Color("#FFFFFF")).
+					Bold(true).
+					Padding(0, 1).
+					Render(displayName)
+			} else {
+				displayName = lipgloss.NewStyle().
+					Padding(0, 1).
+					Render(displayName)
+			}
+
+			// 显示时间和大小
+			timeStr := b.Timestamp.Format("2006-01-02 15:04:05")
+			sizeStr := fmt.Sprintf("%.2f KB", float64(b.Size)/1024)
+			info := fmt.Sprintf("  %s | %s", timeStr, sizeStr)
+
+			s.WriteString(fmt.Sprintf("%d. %s\n%s\n", i+1, displayName, info))
+		}
+	}
+
+	// Help
+	s.WriteString("\n")
+	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#8E8E93"))
+	s.WriteString(helpStyle.Render("↑/↓: 选择 • Enter: 恢复 • ESC: 返回"))
+
+	return s.String()
+}
+
+// handleBackupListKeys handles keys in backup list mode
+func (m Model) handleBackupListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "q", "esc":
+		m.mode = "list"
+		m.message = ""
+		m.err = nil
+	case "up", "k":
+		if m.backupCursor > 0 {
+			m.backupCursor--
+		}
+	case "down", "j":
+		if m.backupCursor < len(m.backupList)-1 {
+			m.backupCursor++
+		}
+	case "enter":
+		if len(m.backupList) > 0 {
+			selectedBackup := m.backupList[m.backupCursor]
+
+			// 恢复备份
+			err := backup.RestoreBackup(m.configPath, selectedBackup.Path)
+			if err != nil {
+				m.err = fmt.Errorf("恢复备份失败: %w", err)
+				m.message = ""
+			} else {
+				m.message = fmt.Sprintf("配置已从备份恢复: %s", filepath.Base(selectedBackup.Path))
+				m.err = nil
+
+				// 重新加载配置
+				if err := m.manager.Load(); err != nil {
+					m.err = fmt.Errorf("重新加载配置失败: %w", err)
+					m.message = ""
+				} else {
+					m.refreshProviders()
+				}
+
+				// 返回列表模式
+				m.mode = "list"
+			}
+		}
+	}
+	return m, nil
+}
+
 // Helper functions
 func (m *Model) initForm(provider *config.Provider) {
 	m.inputs = make([]textinput.Model, 5)
 	m.focusIndex = 0
 
-	// Name
+	// Name (必填)
 	m.inputs[0] = textinput.New()
 	m.inputs[0].Placeholder = "例如: Anthropic 官方"
 	m.inputs[0].Focus()
 	m.inputs[0].CharLimit = 50
 	m.inputs[0].Width = 50
 
-	// Website URL
+	// API Token (必填)
 	m.inputs[1] = textinput.New()
-	m.inputs[1].Placeholder = "https://example.com"
-	m.inputs[1].CharLimit = 200
+	m.inputs[1].Placeholder = "sk-ant-xxxxx"
+	m.inputs[1].EchoMode = textinput.EchoPassword
+	m.inputs[1].CharLimit = 500
 	m.inputs[1].Width = 50
 
-	// API Token
+	// Base URL (必填)
 	m.inputs[2] = textinput.New()
-	m.inputs[2].Placeholder = "sk-ant-xxxxx"
-	m.inputs[2].EchoMode = textinput.EchoPassword
-	m.inputs[2].CharLimit = 500
+	m.inputs[2].Placeholder = "https://api.anthropic.com"
+	m.inputs[2].CharLimit = 200
 	m.inputs[2].Width = 50
 
-	// Base URL
+	// Website URL (可选)
 	m.inputs[3] = textinput.New()
-	m.inputs[3].Placeholder = "https://api.anthropic.com"
+	m.inputs[3].Placeholder = "https://example.com"
 	m.inputs[3].CharLimit = 200
 	m.inputs[3].Width = 50
 
-	// Default Sonnet Model (optional, Claude only)
+	// Default Sonnet Model (可选)
 	m.inputs[4] = textinput.New()
 	m.inputs[4].Placeholder = "例如: claude-3-5-sonnet-20241022 (可选)"
 	m.inputs[4].CharLimit = 100
@@ -644,14 +805,14 @@ func (m *Model) initForm(provider *config.Provider) {
 	// Fill existing data
 	if provider != nil {
 		m.inputs[0].SetValue(provider.Name)
-		m.inputs[1].SetValue(provider.WebsiteURL)
 
 		token := config.ExtractTokenFromProvider(provider)
 		baseURL := config.ExtractBaseURLFromProvider(provider)
 		defaultSonnetModel := config.ExtractDefaultSonnetModelFromProvider(provider)
 
-		m.inputs[2].SetValue(token)
-		m.inputs[3].SetValue(baseURL)
+		m.inputs[1].SetValue(token)
+		m.inputs[2].SetValue(baseURL)
+		m.inputs[3].SetValue(provider.WebsiteURL)
 		m.inputs[4].SetValue(defaultSonnetModel)
 	}
 }
