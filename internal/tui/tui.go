@@ -66,6 +66,13 @@ func (m *Model) refreshProviders() {
 	m.providers = m.manager.ListProvidersForApp(m.currentApp)
 }
 
+// syncModTime updates the cached modification time after internal config changes
+func (m *Model) syncModTime() {
+	if info, err := os.Stat(m.configPath); err == nil {
+		m.lastModTime = info.ModTime()
+	}
+}
+
 // checkConfigChanges checks if config file has been modified externally
 func (m *Model) checkConfigChanges() {
 	info, err := os.Stat(m.configPath)
@@ -190,6 +197,7 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 					m.message = i18n.T("success.switched_to") + ": " + provider.Name
 					m.err = nil
 					m.refreshProviders()
+					m.syncModTime()
 				}
 			}
 		}
@@ -359,6 +367,7 @@ func (m *Model) submitForm() {
 		m.err = nil
 		m.mode = "list"
 		m.refreshProviders()
+		m.syncModTime()
 	}
 }
 
@@ -377,6 +386,7 @@ func (m Model) handleDeleteKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if m.cursor >= len(m.providers) && m.cursor > 0 {
 				m.cursor--
 			}
+			m.syncModTime()
 		}
 		m.mode = "list"
 		m.deleteName = ""
@@ -755,6 +765,7 @@ func (m Model) handleBackupListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 					m.message = ""
 				} else {
 					m.refreshProviders()
+					m.syncModTime()
 				}
 
 				// 返回列表模式
