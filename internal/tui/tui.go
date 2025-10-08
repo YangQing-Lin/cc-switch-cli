@@ -3,7 +3,9 @@ package tui
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strings"
+	"time"
 
 	"github.com/YangQing-Lin/cc-switch-cli/internal/config"
 	"github.com/YangQing-Lin/cc-switch-cli/internal/i18n"
@@ -14,29 +16,43 @@ import (
 
 // Model TUI 主模型
 type Model struct {
-	manager    *config.Manager
-	providers  []config.Provider
-	cursor     int
-	width      int
-	height     int
-	err        error
-	message    string
-	mode       string // "list", "add", "edit", "delete", "app_select"
-	editName   string // 正在编辑的配置名称
-	deleteName string // 要删除的配置名称
-	inputs     []textinput.Model
-	focusIndex int
-	currentApp string // "claude" or "codex"
-	appCursor  int    // 应用选择光标 (0=Claude, 1=Codex)
+	manager        *config.Manager
+	providers      []config.Provider
+	cursor         int
+	width          int
+	height         int
+	err            error
+	message        string
+	mode           string // "list", "add", "edit", "delete", "app_select"
+	editName       string // 正在编辑的配置名称
+	deleteName     string // 要删除的配置名称
+	inputs         []textinput.Model
+	focusIndex     int
+	currentApp     string    // "claude" or "codex"
+	appCursor      int       // 应用选择光标 (0=Claude, 1=Codex)
+	lastModTime    time.Time // 配置文件最后修改时间
+	configPath     string    // 配置文件路径
+	configCorrupted bool     // 配置文件是否损坏
 }
+
+// tickMsg is sent on every tick for config refresh
+type tickMsg time.Time
 
 // New 创建新的 TUI 模型
 func New(manager *config.Manager) Model {
+	configPath := manager.GetConfigPath()
+	var modTime time.Time
+	if info, err := os.Stat(configPath); err == nil {
+		modTime = info.ModTime()
+	}
+
 	m := Model{
-		manager:    manager,
-		mode:       "list",
-		currentApp: "claude", // 默认显示 Claude
-		appCursor:  0,
+		manager:     manager,
+		mode:        "list",
+		currentApp:  "claude", // 默认显示 Claude
+		appCursor:   0,
+		configPath:  configPath,
+		lastModTime: modTime,
 	}
 	m.refreshProviders()
 	return m
@@ -46,8 +62,49 @@ func (m *Model) refreshProviders() {
 	m.providers = m.manager.ListProvidersForApp(m.currentApp)
 }
 
+// checkConfigChanges checks if config file has been modified externally
+func (m *Model) checkConfigChanges() {
+	info, err := os.Stat(m.configPath)
+	if err != nil {
+		// Config file doesn't exist or can't be accessed
+		if !m.configCorrupted {
+			m.configCorrupted = true
+			m.err = errors.New("配置文件不可访问，请使用 'backup restore' 命令恢复")
+			m.message = ""
+		}
+		return
+	}
+
+	modTime := info.ModTime()
+	if modTime.After(m.lastModTime) {
+		// Config file was modified externally, reload
+		m.lastModTime = modTime
+
+		// Try to reload config
+		if err := m.manager.Load(); err != nil {
+			m.configCorrupted = true
+			m.err = fmt.Errorf("配置文件损坏: %v。请使用 'backup restore' 恢复", err)
+			m.message = ""
+		} else {
+			m.configCorrupted = false
+			m.refreshProviders()
+			m.message = "配置已从外部更新刷新"
+			m.err = nil
+		}
+	}
+}
+
 func (m Model) Init() tea.Cmd {
-	return nil
+	return tea.Batch(
+		tickCmd(),
+	)
+}
+
+// tickCmd returns a command that sends a tick message every 2 seconds
+func tickCmd() tea.Cmd {
+	return tea.Tick(2*time.Second, func(t time.Time) tea.Msg {
+		return tickMsg(t)
+	})
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -55,6 +112,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+
+	case tickMsg:
+		// Only check config file changes in list mode
+		if m.mode == "list" {
+			m.checkConfigChanges()
+		}
+		return m, tickCmd()
 
 	case tea.KeyMsg:
 		switch m.mode {

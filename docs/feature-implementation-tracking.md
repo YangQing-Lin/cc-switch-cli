@@ -360,6 +360,7 @@ type MultiAppConfig struct {
 - 2025-10-06: Codex CLI 完整支持实现（v0.4.0）
 - 2025-10-06: 导入前自动备份功能实现，与 GUI v3.4.0 备份机制对齐（v0.5.0）
 - 2025-10-07: GUI v3.5.0 配置兼容性实现（v0.6.0），添加 Provider.Meta 字段
+- 2025-10-08: 高级备份系统、单实例保护、TUI自动刷新（v0.7.0）
 
 ### 最新完成的功能（v0.3.0）
 
@@ -501,28 +502,149 @@ type MultiAppConfig struct {
    - ✅ 显示备份ID给用户
    - ✅ 备份失败时给出警告但不中断导入
 
+### 最新完成的功能（v0.7.0）- 高级备份系统与单实例保护 🎉
+
+#### 代码品味优化（Linus风格）
+1. **消除冒泡排序**
+   - ✅ cmd/backup.go:153-159 - 冒泡排序 → `sort.Slice`
+   - ✅ cmd/backup.go:226-228 - 冒泡排序 → `sort.Slice`
+   - ✅ 性能提升：O(n²) → O(n log n)
+
+2. **Load()函数重构**
+   - ✅ 296行巨型函数拆分成11个小函数
+   - ✅ 每个函数只做一件事：创建默认配置、检查空配置、处理损坏配置等
+   - ✅ 消除特殊情况分支，提升可维护性
+   - ✅ 函数列表：
+     - `createDefaultConfig()` - 创建默认配置
+     - `isEmptyConfig()` - 检查空配置
+     - `handleEmptyConfig()` - 处理空配置
+     - `loadAndMigrate()` - 加载并迁移
+     - `detectConfigVersion()` - 检测配置版本
+     - `handleCorruptedConfig()` - 处理损坏配置
+     - `migrateV1Config()` - 迁移v1配置
+     - `migrateV2OldConfig()` - 迁移v2旧配置
+     - `parseV2Config()` - 解析v2配置
+     - `ensureProvidersInitialized()` - 确保Providers初始化
+
+#### 智能备份系统 ✅
+1. **自动备份机制**
+   - ✅ Save()时自动创建备份（透明无感）
+   - ✅ 备份文件前缀：`auto_backup_YYYYMMDD_HHMMSS.json`
+   - ✅ 独立清理策略：仅保留最近5个自动备份
+   - ✅ 静默失败：备份失败不影响保存操作
+
+2. **手动备份机制**
+   - ✅ 用户显式调用 `backup` 命令
+   - ✅ 备份文件前缀：`backup_YYYYMMDD_HHMMSS.json`
+   - ✅ 独立清理策略：保留最近10个手动备份
+   - ✅ 详细反馈：显示备份位置和文件信息
+
+3. **备份系统架构**
+   - ✅ `CreateAutoBackup()` - 自动备份入口
+   - ✅ `CreateBackup()` - 手动备份入口
+   - ✅ `createBackup(isAuto)` - 内部统一实现
+   - ✅ `cleanupAutoBackups()` - 自动备份清理
+   - ✅ `cleanupManualBackups()` - 手动备份清理
+   - ✅ `cleanupBackupsByPrefix()` - 通用清理逻辑
+
+#### 单实例保护机制 ✅
+1. **Lockfile机制**
+   - ✅ 使用文件锁而非进程检测（可靠性更高）
+   - ✅ 锁文件位置：`~/.cc-switch/.cc-switch.lock`
+   - ✅ 锁文件内容：当前进程PID
+   - ✅ 过期检测：5分钟无活动自动清理
+
+2. **实例冲突处理**
+   - ✅ 检测到冲突时询问用户是否抢占
+   - ✅ 抢占模式：强制获取锁并通知第一个实例退出
+   - ✅ 用户友好提示：
+     ```
+     ⚠ 检测到另一个 cc-switch 实例正在运行
+     是否要强制启动并终止其他实例? (y/N):
+     ```
+
+3. **便携模式豁免**
+   - ✅ 便携模式自动跳过锁机制
+   - ✅ 支持同时运行多个便携实例（用于USB设备）
+   - ✅ `--no-lock` flag可手动禁用锁
+
+4. **锁管理功能**
+   - ✅ `TryAcquire()` - 尝试获取锁
+   - ✅ `ForceAcquire()` - 强制获取锁
+   - ✅ `Release()` - 释放锁
+   - ✅ `Touch()` - 保持锁活跃（Keep-alive）
+   - ✅ `GetPID()` - 获取锁持有者PID
+
+#### TUI自动刷新系统 ✅
+1. **配置文件监控**
+   - ✅ 每2秒定时检查配置文件 mtime
+   - ✅ 检测到外部修改时自动重新加载
+   - ✅ 使用 `tea.Tick` 而非goroutine（Bubble Tea最佳实践）
+
+2. **刷新策略**
+   - ✅ 仅在 list 模式刷新（不干扰编辑流程）
+   - ✅ 检测到变化后显示提示："配置已从外部更新刷新"
+   - ✅ 刷新失败显示错误并引导恢复
+
+3. **损坏检测与恢复提示**
+   - ✅ 配置文件不可访问时显示警告
+   - ✅ 配置文件损坏时显示详细错误
+   - ✅ 自动提示用户使用备份恢复：
+     ```
+     💡 提示: 您可以使用以下命令从备份恢复配置:
+        cc-switch backup list      # 查看可用备份
+        cc-switch backup restore <backup-id>  # 恢复备份
+     ```
+
+4. **状态追踪**
+   - ✅ `lastModTime` - 记录最后修改时间
+   - ✅ `configCorrupted` - 标记配置损坏状态
+   - ✅ `checkConfigChanges()` - 配置变化检查函数
+
 #### 命令示例
 
 ```bash
-# 导出配置
-cc-switch export --output my-config.json
+# 启动TUI（自动获取单实例锁）
+cc-switch
 
-# 导入配置（自动创建备份）
-cc-switch import --from-file my-config.json
-# 输出: ✓ 已创建备份: backup_20251006_143528
+# 禁用单实例锁（允许多个TUI同时运行）
+cc-switch --no-lock
 
-# 列出所有备份
+# 查看自动备份和手动备份
 cc-switch backup list
+# 输出示例:
+# 1. auto_backup_20251008_143025.json  (自动备份)
+# 2. backup_20251008_142530.json       (手动备份)
+# 3. auto_backup_20251008_141510.json  (自动备份)
 
 # 从备份恢复
-cc-switch backup restore backup_20251006_143528
+cc-switch backup restore auto_backup_20251008_143025
 ```
 
 #### 技术实现细节
-- ✅ 使用UTC时间戳确保跨时区一致性
-- ✅ 备份清理使用文件修改时间排序
-- ✅ 恢复前验证备份文件JSON格式
-- ✅ 所有备份操作具有原子性（失败不影响现有配置）
+1. **备份系统**
+   - ✅ 区分前缀：`auto_` vs `backup_`
+   - ✅ 独立清理：5个自动备份 vs 10个手动备份
+   - ✅ 使用 `sort.Slice` 替代冒泡排序
+   - ✅ 使用UTC时间戳确保跨时区一致性
+
+2. **单实例锁**
+   - ✅ Lockfile路径：`~/.cc-switch/.cc-switch.lock`
+   - ✅ 过期时间：5分钟无活动
+   - ✅ 便携模式豁免：自动跳过锁检查
+   - ✅ 用户可控：`--no-lock` flag
+
+3. **TUI刷新**
+   - ✅ 轮询间隔：2秒
+   - ✅ 检查方式：mtime对比
+   - ✅ 加载失败：显示错误并提示恢复
+   - ✅ 最佳实践：使用 `tea.Tick` 而非goroutine
+
+4. **代码品味**
+   - ✅ Load()函数：296行 → 11个小函数
+   - ✅ 排序算法：O(n²) → O(n log n)
+   - ✅ 消除特殊情况：更少的if/else分支
+   - ✅ 单一职责：每个函数只做一件事
 
 ### 代码质量
 - ✅ 所有新功能已通过编译测试

@@ -1,17 +1,23 @@
 package cmd
 
 import (
+	"bufio"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/YangQing-Lin/cc-switch-cli/internal/config"
 	"github.com/YangQing-Lin/cc-switch-cli/internal/i18n"
+	"github.com/YangQing-Lin/cc-switch-cli/internal/lock"
+	"github.com/YangQing-Lin/cc-switch-cli/internal/portable"
 	"github.com/YangQing-Lin/cc-switch-cli/internal/tui"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 )
 
 var configDir string
+var noLock bool
 
 var rootCmd = &cobra.Command{
 	Use:   "cc-switch [配置名称]",
@@ -67,6 +73,7 @@ func init() {
 
 	// 添加全局 flag
 	rootCmd.PersistentFlags().StringVar(&configDir, "dir", "", "使用自定义配置目录")
+	rootCmd.PersistentFlags().BoolVar(&noLock, "no-lock", false, "禁用单实例锁（允许多个实例同时运行）")
 
 	// 自定义帮助模板
 	rootCmd.SetHelpTemplate(`{{.Long}}
@@ -141,6 +148,42 @@ func switchConfig(manager *config.Manager, name string) error {
 
 // startTUI 启动交互式 TUI
 func startTUI(manager *config.Manager) error {
+	// 获取配置目录
+	configPath := manager.GetConfigPath()
+	configDirPath := filepath.Dir(configPath)
+
+	// 尝试获取锁（除非禁用或便携模式）
+	var instanceLock *lock.Lock
+	if !noLock && !portable.IsPortableMode() {
+		instanceLock = lock.NewLock(configDirPath)
+		acquired, err := instanceLock.TryAcquire()
+		if err != nil {
+			return fmt.Errorf("获取实例锁失败: %w", err)
+		}
+
+		if !acquired {
+			// 另一个实例正在运行，询问用户是否抢占
+			fmt.Println("⚠ 检测到另一个 cc-switch 实例正在运行")
+			fmt.Print("是否要强制启动并终止其他实例? (y/N): ")
+
+			reader := bufio.NewReader(os.Stdin)
+			response, _ := reader.ReadString('\n')
+			response = strings.TrimSpace(strings.ToLower(response))
+
+			if response == "y" || response == "yes" {
+				if err := instanceLock.ForceAcquire(); err != nil {
+					return fmt.Errorf("强制获取锁失败: %w", err)
+				}
+				fmt.Println("✓ 已强制启动")
+			} else {
+				return fmt.Errorf("已取消启动")
+			}
+		}
+
+		// 确保退出时释放锁
+		defer instanceLock.Release()
+	}
+
 	model := tui.New(manager)
 	p := tea.NewProgram(model, tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {

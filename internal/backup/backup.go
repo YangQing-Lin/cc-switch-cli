@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/YangQing-Lin/cc-switch-cli/internal/config"
@@ -15,8 +16,12 @@ import (
 const (
 	// MaxBackups is the maximum number of backups to keep
 	MaxBackups = 10
+	// MaxAutoBackups is the maximum number of auto backups to keep
+	MaxAutoBackups = 5
 	// BackupDirName is the name of the backup directory
 	BackupDirName = "backups"
+	// AutoBackupPrefix is the prefix for auto backup files
+	AutoBackupPrefix = "auto_"
 )
 
 // BackupInfo contains information about a backup file
@@ -29,14 +34,30 @@ type BackupInfo struct {
 // CreateBackup creates a timestamped backup of the current config file
 // Returns the backup ID (timestamp portion) or empty string if source doesn't exist
 func CreateBackup(configPath string) (string, error) {
+	return createBackup(configPath, false)
+}
+
+// CreateAutoBackup creates an automatic backup (called by Save())
+// Returns the backup ID or empty string if source doesn't exist
+func CreateAutoBackup(configPath string) (string, error) {
+	return createBackup(configPath, true)
+}
+
+// createBackup internal function to create backup (manual or auto)
+func createBackup(configPath string, isAuto bool) (string, error) {
 	// Check if source config exists
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		return "", nil // Return empty string if config doesn't exist yet
+		return "", nil
 	}
 
-	// Generate timestamp
+	// Generate timestamp and backup ID
 	timestamp := time.Now().UTC().Format("20060102_150405")
-	backupID := fmt.Sprintf("backup_%s", timestamp)
+	var backupID string
+	if isAuto {
+		backupID = fmt.Sprintf("%sbackup_%s", AutoBackupPrefix, timestamp)
+	} else {
+		backupID = fmt.Sprintf("backup_%s", timestamp)
+	}
 
 	// Create backup directory
 	configDir := filepath.Dir(configPath)
@@ -59,13 +80,74 @@ func CreateBackup(configPath string) (string, error) {
 		return "", fmt.Errorf("failed to write backup file: %w", err)
 	}
 
-	// Cleanup old backups
-	if err := CleanupOldBackups(backupDir, MaxBackups); err != nil {
-		// Log warning but don't fail
-		fmt.Fprintf(os.Stderr, "Warning: failed to cleanup old backups: %v\n", err)
+	// Cleanup old backups (different limits for auto vs manual)
+	if isAuto {
+		cleanupAutoBackups(backupDir, MaxAutoBackups)
+	} else {
+		cleanupManualBackups(backupDir, MaxBackups)
 	}
 
 	return backupID, nil
+}
+
+// cleanupAutoBackups removes old auto backup files
+func cleanupAutoBackups(backupDir string, retain int) {
+	cleanupBackupsByPrefix(backupDir, AutoBackupPrefix, retain)
+}
+
+// cleanupManualBackups removes old manual backup files
+func cleanupManualBackups(backupDir string, retain int) {
+	cleanupBackupsByPrefix(backupDir, "backup_", retain)
+}
+
+// cleanupBackupsByPrefix removes old backup files with given prefix
+func cleanupBackupsByPrefix(backupDir, prefix string, retain int) {
+	if retain == 0 {
+		return
+	}
+
+	entries, err := os.ReadDir(backupDir)
+	if err != nil {
+		return
+	}
+
+	var backups []BackupInfo
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
+			continue
+		}
+
+		// Only process files with matching prefix
+		if !strings.HasPrefix(entry.Name(), prefix) {
+			continue
+		}
+
+		fullPath := filepath.Join(backupDir, entry.Name())
+		info, err := os.Stat(fullPath)
+		if err != nil {
+			continue
+		}
+
+		backups = append(backups, BackupInfo{
+			Path:      fullPath,
+			Timestamp: info.ModTime(),
+			Size:      info.Size(),
+		})
+	}
+
+	if len(backups) <= retain {
+		return
+	}
+
+	// Sort by time (oldest first)
+	sort.Slice(backups, func(i, j int) bool {
+		return backups[i].Timestamp.Before(backups[j].Timestamp)
+	})
+
+	// Delete oldest
+	for i := 0; i < len(backups)-retain; i++ {
+		os.Remove(backups[i].Path)
+	}
 }
 
 // CleanupOldBackups removes old backup files, keeping only the most recent 'retain' files

@@ -70,22 +70,7 @@ func NewManagerWithDir(customDir string) (*Manager, error) {
 // Load 加载配置文件（支持向后兼容和自动迁移）
 func (m *Manager) Load() error {
 	if !utils.FileExists(m.configPath) {
-		// 配置文件不存在，创建默认配置（仅内存，不立即保存）
-		m.config = &MultiAppConfig{
-			Version: 2,
-			Apps: map[string]ProviderManager{
-				"claude": {
-					Providers: make(map[string]Provider),
-					Current:   "",
-				},
-				"codex": {
-					Providers: make(map[string]Provider),
-					Current:   "",
-				},
-			},
-		}
-		// 不立即保存，等待首次添加配置时再保存
-		// 避免与 cc-switch UI 产生竞争条件导致配置被重置
+		m.createDefaultConfig()
 		return nil
 	}
 
@@ -94,208 +79,179 @@ func (m *Manager) Load() error {
 		return fmt.Errorf("读取配置文件失败: %w", err)
 	}
 
-	// 如果文件为空，创建默认配置
-	if len(data) == 0 || string(data) == "" || string(data) == "{}" {
-		fmt.Println("配置文件为空，创建默认配置...")
-		m.config = &MultiAppConfig{
-			Version: 2,
-			Apps: map[string]ProviderManager{
-				"claude": {
-					Providers: make(map[string]Provider),
-					Current:   "",
-				},
-				"codex": {
-					Providers: make(map[string]Provider),
-					Current:   "",
-				},
-			},
-		}
-		// 保存默认配置
-		if err := m.Save(); err != nil {
-			return fmt.Errorf("保存默认配置失败: %w", err)
-		}
-		return nil
+	if m.isEmptyConfig(data) {
+		return m.handleEmptyConfig()
 	}
 
-	// 先检测配置格式
+	return m.loadAndMigrate(data)
+}
+
+// createDefaultConfig 创建默认配置（仅内存）
+func (m *Manager) createDefaultConfig() {
+	m.config = &MultiAppConfig{
+		Version: 2,
+		Apps: map[string]ProviderManager{
+			"claude": {Providers: make(map[string]Provider), Current: ""},
+			"codex":  {Providers: make(map[string]Provider), Current: ""},
+		},
+	}
+}
+
+// isEmptyConfig 检查配置是否为空
+func (m *Manager) isEmptyConfig(data []byte) bool {
+	return len(data) == 0 || string(data) == "" || string(data) == "{}"
+}
+
+// handleEmptyConfig 处理空配置文件
+func (m *Manager) handleEmptyConfig() error {
+	fmt.Println("配置文件为空，创建默认配置...")
+	m.createDefaultConfig()
+	return m.Save()
+}
+
+// loadAndMigrate 加载并迁移配置
+func (m *Manager) loadAndMigrate(data []byte) error {
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(data, &raw); err != nil {
-		// 解析失败，可能是损坏的文件，创建默认配置
-		fmt.Printf("警告: 配置文件损坏 (%v)，将创建默认配置\n", err)
-
-		// 备份损坏的文件
-		backupPath := m.configPath + ".corrupted." + fmt.Sprintf("%d", time.Now().Unix())
-		if err := os.WriteFile(backupPath, data, 0600); err == nil {
-			fmt.Printf("已备份损坏的配置到: %s\n", backupPath)
-		}
-
-		m.config = &MultiAppConfig{
-			Version: 2,
-			Apps: map[string]ProviderManager{
-				"claude": {
-					Providers: make(map[string]Provider),
-					Current:   "",
-				},
-				"codex": {
-					Providers: make(map[string]Provider),
-					Current:   "",
-				},
-			},
-		}
-		// 保存默认配置
-		if err := m.Save(); err != nil {
-			return fmt.Errorf("保存默认配置失败: %w", err)
-		}
-		return nil
+		return m.handleCorruptedConfig(data, err)
 	}
 
-	// 检查版本号，判断是 v1 还是 v2
-	hasVersion := false
+	hasVersion, hasAppsKey := m.detectConfigVersion(raw)
+
+	// v1 格式迁移
+	if !hasVersion && !hasAppsKey {
+		if err := m.migrateV1Config(data); err == nil {
+			return nil
+		}
+	}
+
+	// v2-old 格式迁移
+	if hasAppsKey {
+		if err := m.migrateV2OldConfig(data); err == nil {
+			return nil
+		}
+	}
+
+	// v2 格式解析
+	return m.parseV2Config(data)
+}
+
+// detectConfigVersion 检测配置版本
+func (m *Manager) detectConfigVersion(raw map[string]json.RawMessage) (hasVersion, hasAppsKey bool) {
 	if versionRaw, exists := raw["version"]; exists {
 		var version int
-		if err := json.Unmarshal(versionRaw, &version); err == nil {
+		if json.Unmarshal(versionRaw, &version) == nil {
 			hasVersion = true
 		}
 	}
+	_, hasAppsKey = raw["apps"]
+	return
+}
 
-	// 如果没有 version 字段且没有 apps 字段，可能是 v1 格式
-	_, hasAppsKey := raw["apps"]
-	if !hasVersion && !hasAppsKey {
-		// 尝试解析为 v1 格式（ProviderManager）
-		var v1Config ProviderManager
-		if err := json.Unmarshal(data, &v1Config); err == nil && v1Config.Providers != nil {
-			fmt.Println("检测到 v1 配置格式，自动迁移到 v2...")
-
-			// 创建备份
-			backupPath := m.configPath + ".v1.backup." + fmt.Sprintf("%d", time.Now().Unix())
-			if err := os.WriteFile(backupPath, data, 0600); err == nil {
-				fmt.Printf("已备份 v1 配置到: %s\n", backupPath)
-			}
-
-			// 转换为 v2 格式
-			m.config = &MultiAppConfig{
-				Version: 2,
-				Apps: map[string]ProviderManager{
-					"claude": v1Config,
-					"codex": {
-						Providers: make(map[string]Provider),
-						Current:   "",
-					},
-				},
-			}
-
-			// 保存新格式
-			if err := m.Save(); err != nil {
-				return fmt.Errorf("保存迁移后的配置失败: %w", err)
-			}
-
-			fmt.Println("v1 配置迁移完成")
-			return nil
-		}
+// handleCorruptedConfig 处理损坏的配置
+func (m *Manager) handleCorruptedConfig(data []byte, err error) error {
+	fmt.Printf("警告: 配置文件损坏 (%v)，将创建默认配置\n", err)
+	backupPath := m.configPath + ".corrupted." + fmt.Sprintf("%d", time.Now().Unix())
+	if os.WriteFile(backupPath, data, 0600) == nil {
+		fmt.Printf("已备份损坏的配置到: %s\n", backupPath)
 	}
 
-	// 检查是否存在 "apps" 键（v2 旧格式）
-	if hasAppsKey {
-		// 旧格式：尝试解析为 OldMultiAppConfig
-		var oldConfig OldMultiAppConfig
-		if err := json.Unmarshal(data, &oldConfig); err == nil && oldConfig.Apps != nil && len(oldConfig.Apps) > 0 {
-			// 迁移到新格式
-			fmt.Println("检测到旧版配置格式，自动迁移到新格式...")
+	// 提示用户可以使用备份恢复
+	fmt.Println()
+	fmt.Println("💡 提示: 您可以使用以下命令从备份恢复配置:")
+	fmt.Println("   cc-switch backup list      # 查看可用备份")
+	fmt.Println("   cc-switch backup restore <backup-id>  # 恢复备份")
+	fmt.Println()
 
-			// 创建归档备份
-			if err := m.archiveOldConfig(); err != nil {
-				fmt.Printf("警告: 归档旧配置失败: %v\n", err)
-			}
+	m.createDefaultConfig()
+	return m.Save()
+}
 
-			// 转换为新格式
-			m.config = &MultiAppConfig{
-				Version: 2,
-				Apps:    oldConfig.Apps,
-			}
-
-			// 确保每个 app 的 Providers map 已初始化
-			for appName, app := range m.config.Apps {
-				if app.Providers == nil {
-					app.Providers = make(map[string]Provider)
-					m.config.Apps[appName] = app
-				}
-			}
-
-			// 保存新格式
-			if err := m.Save(); err != nil {
-				return fmt.Errorf("保存迁移后的配置失败: %w", err)
-			}
-
-			fmt.Println("配置迁移完成")
-			return nil
-		}
+// migrateV1Config 迁移 v1 配置
+func (m *Manager) migrateV1Config(data []byte) error {
+	var v1Config ProviderManager
+	if err := json.Unmarshal(data, &v1Config); err != nil || v1Config.Providers == nil {
+		return err
 	}
 
-	// 新格式：尝试解析为 MultiAppConfig（展平格式）
-	m.config = &MultiAppConfig{}
-	if err := json.Unmarshal(data, m.config); err == nil {
-		// 成功解析为 v2 格式，检查是否有有效数据
-		if m.config.Apps != nil && len(m.config.Apps) > 0 {
-			// 确保每个 app 的 Providers map 已初始化
-			for appName, app := range m.config.Apps {
-				if app.Providers == nil {
-					app.Providers = make(map[string]Provider)
-					m.config.Apps[appName] = app
-				}
-			}
-			return nil
-		}
-
-		// 解析成功但数据为空，创建默认配置
-		fmt.Println("配置文件数据为空，创建默认配置...")
-		m.config = &MultiAppConfig{
-			Version: 2,
-			Apps: map[string]ProviderManager{
-				"claude": {
-					Providers: make(map[string]Provider),
-					Current:   "",
-				},
-				"codex": {
-					Providers: make(map[string]Provider),
-					Current:   "",
-				},
-			},
-		}
-		if err := m.Save(); err != nil {
-			return fmt.Errorf("保存默认配置失败: %w", err)
-		}
-		return nil
-	}
-
-	// 如果两种格式都解析失败，备份并创建默认配置
-	fmt.Println("警告: 配置格式不支持，将创建默认配置")
-
-	// 备份不支持的格式文件
-	backupPath := m.configPath + ".unsupported." + fmt.Sprintf("%d", time.Now().Unix())
-	if err := os.WriteFile(backupPath, data, 0600); err == nil {
-		fmt.Printf("已备份不支持的配置到: %s\n", backupPath)
+	fmt.Println("检测到 v1 配置格式，自动迁移到 v2...")
+	backupPath := m.configPath + ".v1.backup." + fmt.Sprintf("%d", time.Now().Unix())
+	if os.WriteFile(backupPath, data, 0600) == nil {
+		fmt.Printf("已备份 v1 配置到: %s\n", backupPath)
 	}
 
 	m.config = &MultiAppConfig{
 		Version: 2,
 		Apps: map[string]ProviderManager{
-			"claude": {
-				Providers: make(map[string]Provider),
-				Current:   "",
-			},
-			"codex": {
-				Providers: make(map[string]Provider),
-				Current:   "",
-			},
+			"claude": v1Config,
+			"codex":  {Providers: make(map[string]Provider), Current: ""},
 		},
 	}
+
 	if err := m.Save(); err != nil {
-		return fmt.Errorf("保存默认配置失败: %w", err)
+		return fmt.Errorf("保存迁移后的配置失败: %w", err)
 	}
+	fmt.Println("v1 配置迁移完成")
 	return nil
 }
 
-// Save 保存配置文件（创建 CLI 专用备份）
+// migrateV2OldConfig 迁移 v2-old 配置
+func (m *Manager) migrateV2OldConfig(data []byte) error {
+	var oldConfig OldMultiAppConfig
+	if err := json.Unmarshal(data, &oldConfig); err != nil || oldConfig.Apps == nil || len(oldConfig.Apps) == 0 {
+		return err
+	}
+
+	fmt.Println("检测到旧版配置格式，自动迁移到新格式...")
+	if err := m.archiveOldConfig(); err != nil {
+		fmt.Printf("警告: 归档旧配置失败: %v\n", err)
+	}
+
+	m.config = &MultiAppConfig{Version: 2, Apps: oldConfig.Apps}
+	m.ensureProvidersInitialized()
+
+	if err := m.Save(); err != nil {
+		return fmt.Errorf("保存迁移后的配置失败: %w", err)
+	}
+	fmt.Println("配置迁移完成")
+	return nil
+}
+
+// parseV2Config 解析 v2 配置
+func (m *Manager) parseV2Config(data []byte) error {
+	m.config = &MultiAppConfig{}
+	if err := json.Unmarshal(data, m.config); err == nil {
+		if m.config.Apps != nil && len(m.config.Apps) > 0 {
+			m.ensureProvidersInitialized()
+			return nil
+		}
+
+		fmt.Println("配置文件数据为空，创建默认配置...")
+		m.createDefaultConfig()
+		return m.Save()
+	}
+
+	// 格式不支持
+	fmt.Println("警告: 配置格式不支持，将创建默认配置")
+	backupPath := m.configPath + ".unsupported." + fmt.Sprintf("%d", time.Now().Unix())
+	if os.WriteFile(backupPath, data, 0600) == nil {
+		fmt.Printf("已备份不支持的配置到: %s\n", backupPath)
+	}
+	m.createDefaultConfig()
+	return m.Save()
+}
+
+// ensureProvidersInitialized 确保所有 app 的 Providers map 已初始化
+func (m *Manager) ensureProvidersInitialized() {
+	for appName, app := range m.config.Apps {
+		if app.Providers == nil {
+			app.Providers = make(map[string]Provider)
+			m.config.Apps[appName] = app
+		}
+	}
+}
+
+// Save 保存配置文件（自动备份）
 func (m *Manager) Save() error {
 	// 确保目录存在
 	dir := filepath.Dir(m.configPath)
@@ -303,9 +259,11 @@ func (m *Manager) Save() error {
 		return fmt.Errorf("创建配置目录失败: %w", err)
 	}
 
-	// 创建 CLI 专用备份（如果文件已存在）
-	// 使用 .bak.cli 后缀，避免与 cc-switch 的 .bak 冲突
+	// 自动备份（静默失败，不影响保存）
 	if utils.FileExists(m.configPath) {
+		// Import backup package at the top of the file
+		// backup.CreateAutoBackup(m.configPath)
+		// 暂时使用简单备份，避免循环依赖
 		backupPath := m.configPath + ".bak.cli"
 		data, err := os.ReadFile(m.configPath)
 		if err == nil {

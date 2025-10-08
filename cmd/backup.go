@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 
 	"github.com/YangQing-Lin/cc-switch-cli/internal/config"
@@ -150,13 +151,9 @@ func cleanOldBackups(backupDir string, keep int) error {
 	}
 
 	// 按时间排序（最旧的在前）
-	for i := 0; i < len(fileInfos)-1; i++ {
-		for j := i + 1; j < len(fileInfos); j++ {
-			if fileInfos[i].time.After(fileInfos[j].time) {
-				fileInfos[i], fileInfos[j] = fileInfos[j], fileInfos[i]
-			}
-		}
-	}
+	sort.Slice(fileInfos, func(i, j int) bool {
+		return fileInfos[i].time.Before(fileInfos[j].time)
+	})
 
 	// 删除最旧的文件
 	toDelete := len(fileInfos) - keep
@@ -227,13 +224,9 @@ var backupListCmd = &cobra.Command{
 		}
 
 		// 按时间排序（最新的在前）
-		for i := 0; i < len(backups)-1; i++ {
-			for j := i + 1; j < len(backups); j++ {
-				if backups[i].modTime.Before(backups[j].modTime) {
-					backups[i], backups[j] = backups[j], backups[i]
-				}
-			}
-		}
+		sort.Slice(backups, func(i, j int) bool {
+			return backups[i].modTime.After(backups[j].modTime)
+		})
 
 		// 显示备份列表
 		fmt.Printf("找到 %d 个备份文件:\n\n", len(backups))
