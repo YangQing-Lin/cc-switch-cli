@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 )
+
 // CustomEndpoint 自定义端点配置（与 GUI v3.5.0+ 兼容）
 type CustomEndpoint struct {
 	URL      string `json:"url"`
@@ -114,11 +115,11 @@ type ClaudePermissions struct {
 
 // ClaudeSettings Claude 设置文件结构
 type ClaudeSettings struct {
-	Env         ClaudeEnv               `json:"env"`
-	Permissions ClaudePermissions       `json:"permissions"`
-	Model       string                  `json:"model,omitempty"`
-	StatusLine  json.RawMessage         `json:"statusLine,omitempty"`
-	Extra       map[string]interface{}  `json:"-"`
+	Env         ClaudeEnv              `json:"env"`
+	Permissions ClaudePermissions      `json:"permissions"`
+	Model       string                 `json:"model,omitempty"`
+	StatusLine  json.RawMessage        `json:"statusLine,omitempty"`
+	Extra       map[string]interface{} `json:"-"`
 }
 
 // UnmarshalJSON 自定义反序列化，保存未知字段

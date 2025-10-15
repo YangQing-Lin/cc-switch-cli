@@ -1,0 +1,112 @@
+# GoReleaser configuration for cc-switch-cli
+version: 2
+
+before:
+  hooks:
+    # 构建前格式化代码（遵循 CLAUDE.md 规范）
+    - go fmt ./...
+    # 运行测试确保代码质量
+    - go test ./...
+
+builds:
+  - id: ccs
+    binary: ccs
+    main: ./main.go
+
+    # 构建时注入版本信息
+    ldflags:
+      - -s -w
+      - -X github.com/YangQing-Lin/cc-switch-cli/internal/version.Version={{.Version}}
+      - -X github.com/YangQing-Lin/cc-switch-cli/internal/version.BuildDate={{.Date}}
+      - -X github.com/YangQing-Lin/cc-switch-cli/internal/version.GitCommit={{.ShortCommit}}
+
+    env:
+      - CGO_ENABLED=0
+
+    # 目标平台
+    goos:
+      - linux
+      - darwin
+      - windows
+
+    goarch:
+      - amd64
+      - arm64
+
+    # Windows 使用 .exe 扩展名
+    hooks:
+      post:
+        - cmd: echo "Built {{ .Name }} for {{ .Os }}/{{ .Arch }}"
+
+archives:
+  - id: default
+    format_overrides:
+      # Windows 使用 zip，其他平台使用 tar.gz
+      - goos: windows
+        format: zip
+
+    # 归档文件命名: ccs-1.0.0-linux-amd64.tar.gz
+    name_template: "{{ .ProjectName }}-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
+
+    files:
+      # 只包含二进制文件，不打包额外文件
+      - none*
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+changelog:
+  # 自动模式 + 简单模板
+  use: github
+  sort: asc
+
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "^Merge"
+
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: Bug Fixes
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: Others
+      order: 999
+
+release:
+  # GitHub Release 设置
+  github:
+    owner: YangQing-Lin
+    name: cc-switch-cli
+
+  # Release 标题模板
+  name_template: "v{{.Version}}"
+
+  # 自动生成 Release Notes
+  draft: false
+  prerelease: auto
+
+  # Release header 和 footer
+  header: |
+    ## cc-switch-cli v{{.Version}}
+
+    跨平台 Claude/Codex 配置管理工具
+
+  footer: |
+    ---
+
+    **安装方法**:
+    1. 下载对应平台的压缩包
+    2. 解压并将 `ccs` (或 `ccs.exe`) 移动到 PATH 目录
+    3. 运行 `ccs version` 验证安装
+
+    **Full Changelog**: https://github.com/YangQing-Lin/cc-switch-cli/compare/{{ .PreviousTag }}...{{ .Tag }}
+
+# 不发布到其他平台
+announce:
+  skip: true

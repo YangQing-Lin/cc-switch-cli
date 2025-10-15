@@ -33,11 +33,11 @@ func TestAtomicWriteFile(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	tests := []struct {
-		name     string
-		path     string
-		data     []byte
-		perm     os.FileMode
-		wantErr  bool
+		name      string
+		path      string
+		data      []byte
+		perm      os.FileMode
+		wantErr   bool
 		skipOnWin bool // Windows 上跳过权限测试
 	}{
 		{
@@ -141,17 +141,17 @@ func TestWriteJSONFile(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "写入有效JSON",
-			path: filepath.Join(tmpDir, "valid.json"),
-			data: testData{Name: "test", Value: 42},
-			perm: 0644,
+			name:    "写入有效JSON",
+			path:    filepath.Join(tmpDir, "valid.json"),
+			data:    testData{Name: "test", Value: 42},
+			perm:    0644,
 			wantErr: false,
 		},
 		{
-			name: "写入带权限的JSON",
-			path: filepath.Join(tmpDir, "secure.json"),
-			data: map[string]string{"key": "value"},
-			perm: 0600,
+			name:    "写入带权限的JSON",
+			path:    filepath.Join(tmpDir, "secure.json"),
+			data:    map[string]string{"key": "value"},
+			perm:    0600,
 			wantErr: false,
 		},
 	}
@@ -246,19 +246,19 @@ func TestBackupFile(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	tests := []struct {
-		name     string
+		name       string
 		fileExists bool
-		wantErr  bool
+		wantErr    bool
 	}{
 		{
-			name:     "备份已存在文件",
+			name:       "备份已存在文件",
 			fileExists: true,
-			wantErr:  false,
+			wantErr:    false,
 		},
 		{
-			name:     "备份不存在的文件",
+			name:       "备份不存在的文件",
 			fileExists: false,
-			wantErr:  false, // 不存在不算错误
+			wantErr:    false, // 不存在不算错误
 		},
 	}
 
@@ -304,22 +304,22 @@ func TestCopyFile(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	tests := []struct {
-		name    string
+		name       string
 		srcContent string
-		srcPerm os.FileMode
-		wantErr bool
+		srcPerm    os.FileMode
+		wantErr    bool
 	}{
 		{
-			name:    "复制普通文件",
+			name:       "复制普通文件",
 			srcContent: "test content",
-			srcPerm: 0644,
-			wantErr: false,
+			srcPerm:    0644,
+			wantErr:    false,
 		},
 		{
-			name:    "复制带权限的文件",
+			name:       "复制带权限的文件",
 			srcContent: "secret",
-			srcPerm: 0600,
-			wantErr: false,
+			srcPerm:    0600,
+			wantErr:    false,
 		},
 	}
 

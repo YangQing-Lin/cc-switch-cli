@@ -13,10 +13,10 @@ import (
 )
 
 var (
-	apiKey            string
-	baseURL           string
-	category          string
-	appName           string
+	apiKey             string
+	baseURL            string
+	category           string
+	appName            string
 	defaultSonnetModel string
 )
 
