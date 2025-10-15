@@ -16,27 +16,35 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+// 预定义的 Default Sonnet Model 选项
+var predefinedModels = []string{
+	"claude-sonnet-4-5-20250929",
+	"claude-sonnet-4-20250514",
+}
+
 // Model TUI 主模型
 type Model struct {
-	manager         *config.Manager
-	providers       []config.Provider
-	cursor          int
-	width           int
-	height          int
-	err             error
-	message         string
-	mode            string // "list", "add", "edit", "delete", "app_select", "backup_list"
-	editName        string // 正在编辑的配置名称
-	deleteName      string // 要删除的配置名称
-	inputs          []textinput.Model
-	focusIndex      int
-	currentApp      string          // "claude" or "codex"
-	appCursor       int             // 应用选择光标 (0=Claude, 1=Codex)
-	lastModTime     time.Time       // 配置文件最后修改时间
-	configPath      string          // 配置文件路径
-	configCorrupted bool            // 配置文件是否损坏
-	backupList      []backup.BackupInfo // 备份列表
-	backupCursor    int             // 备份列表光标
+	manager             *config.Manager
+	providers           []config.Provider
+	cursor              int
+	width               int
+	height              int
+	err                 error
+	message             string
+	mode                string // "list", "add", "edit", "delete", "app_select", "backup_list"
+	editName            string // 正在编辑的配置名称
+	deleteName          string // 要删除的配置名称
+	inputs              []textinput.Model
+	focusIndex          int
+	currentApp          string              // "claude" or "codex"
+	appCursor           int                 // 应用选择光标 (0=Claude, 1=Codex)
+	lastModTime         time.Time           // 配置文件最后修改时间
+	configPath          string              // 配置文件路径
+	configCorrupted     bool                // 配置文件是否损坏
+	backupList          []backup.BackupInfo // 备份列表
+	backupCursor        int                 // 备份列表光标
+	modelSelectorActive bool                // 模型选择器是否激活
+	modelSelectorCursor int                 // 模型选择器光标位置
 }
 
 // tickMsg is sent on every tick for config refresh
@@ -292,14 +300,65 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // Form handlers - 返回 (handled, model, cmd)
 func (m Model) handleFormKeys(msg tea.KeyMsg) (bool, tea.Model, tea.Cmd) {
+	// 当焦点在 Default Sonnet Model 字段（索引4）时，处理模型选择器
+	if m.focusIndex == 4 {
+		switch msg.String() {
+		case "right":
+			// 激活模型选择器
+			if !m.modelSelectorActive {
+				m.modelSelectorActive = true
+				m.modelSelectorCursor = 0
+				return true, m, nil
+			}
+		case "left":
+			// 取消激活模型选择器
+			if m.modelSelectorActive {
+				m.modelSelectorActive = false
+				return true, m, nil
+			}
+		case "up":
+			// 如果模型选择器激活，上移光标
+			if m.modelSelectorActive {
+				if m.modelSelectorCursor > 0 {
+					m.modelSelectorCursor--
+				}
+				return true, m, nil
+			}
+		case "down":
+			// 如果模型选择器激活，下移光标
+			if m.modelSelectorActive {
+				if m.modelSelectorCursor < len(predefinedModels)-1 {
+					m.modelSelectorCursor++
+				}
+				return true, m, nil
+			}
+		case "enter":
+			// 如果模型选择器激活，选择模型并填入
+			if m.modelSelectorActive {
+				selectedModel := predefinedModels[m.modelSelectorCursor]
+				m.inputs[4].SetValue(selectedModel)
+				m.modelSelectorActive = false
+				return true, m, nil
+			}
+		}
+	}
+
 	switch msg.String() {
 	case "esc":
+		// 如果模型选择器激活，先关闭选择器
+		if m.modelSelectorActive {
+			m.modelSelectorActive = false
+			return true, m, nil
+		}
+		// 否则返回列表
 		m.mode = "list"
 		m.message = ""
 		m.err = nil
 		return true, m, nil
-	case "tab", "shift+tab", "up", "down":
-		if msg.String() == "up" || msg.String() == "shift+tab" {
+	case "tab", "shift+tab":
+		// Tab 切换字段时，关闭模型选择器
+		m.modelSelectorActive = false
+		if msg.String() == "shift+tab" {
 			m.focusIndex--
 		} else {
 			m.focusIndex++
@@ -318,9 +377,39 @@ func (m Model) handleFormKeys(msg tea.KeyMsg) (bool, tea.Model, tea.Cmd) {
 			}
 		}
 		return true, m, tea.Batch(cmds...)
-	case "enter", "ctrl+s":
+	case "up", "down":
+		// 如果不是在 Default Sonnet Model 字段，或者选择器未激活，正常切换字段
+		if m.focusIndex != 4 || !m.modelSelectorActive {
+			m.modelSelectorActive = false
+			if msg.String() == "up" {
+				m.focusIndex--
+			} else {
+				m.focusIndex++
+			}
+			if m.focusIndex >= len(m.inputs) {
+				m.focusIndex = 0
+			} else if m.focusIndex < 0 {
+				m.focusIndex = len(m.inputs) - 1
+			}
+			cmds := make([]tea.Cmd, len(m.inputs))
+			for i := range m.inputs {
+				if i == m.focusIndex {
+					cmds[i] = m.inputs[i].Focus()
+				} else {
+					m.inputs[i].Blur()
+				}
+			}
+			return true, m, tea.Batch(cmds...)
+		}
+	case "ctrl+s":
 		m.submitForm()
 		return true, m, nil
+	case "enter":
+		// 如果不在模型选择器中，Enter 提交表单
+		if !m.modelSelectorActive {
+			m.submitForm()
+			return true, m, nil
+		}
 	}
 	// 未处理,返回 false
 	return false, m, nil
@@ -571,7 +660,7 @@ func (m Model) viewAppSelect() string {
 }
 
 func (m Model) viewForm() string {
-	var s strings.Builder
+	var formContent strings.Builder
 
 	title := lipgloss.NewStyle().
 		Bold(true).
@@ -579,28 +668,28 @@ func (m Model) viewForm() string {
 		Padding(0, 1)
 
 	if m.mode == "add" {
-		s.WriteString(title.Render("添加新配置") + "\n\n")
+		formContent.WriteString(title.Render("添加新配置") + "\n\n")
 	} else {
-		s.WriteString(title.Render("编辑配置") + "\n\n")
+		formContent.WriteString(title.Render("编辑配置") + "\n\n")
 	}
 
 	// Error
 	if m.err != nil {
 		errStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF3B30")).Bold(true)
-		s.WriteString(errStyle.Render("✗ "+m.err.Error()) + "\n\n")
+		formContent.WriteString(errStyle.Render("✗ "+m.err.Error()) + "\n\n")
 	}
 
 	// Form (必填字段在前，可选字段在后)
 	labels := []string{"配置名称", "API Token", "Base URL", "网站 (可选)", "Default Sonnet Model (可选)"}
 	for i, label := range labels {
-		s.WriteString(lipgloss.NewStyle().Bold(true).Render(label+":") + "\n")
+		formContent.WriteString(lipgloss.NewStyle().Bold(true).Render(label+":") + "\n")
 		if i == m.focusIndex {
-			s.WriteString(lipgloss.NewStyle().
+			formContent.WriteString(lipgloss.NewStyle().
 				Border(lipgloss.RoundedBorder()).
 				BorderForeground(lipgloss.Color("#007AFF")).
 				Render(m.inputs[i].View()) + "\n\n")
 		} else {
-			s.WriteString(m.inputs[i].View() + "\n\n")
+			formContent.WriteString(m.inputs[i].View() + "\n\n")
 		}
 	}
 
@@ -615,14 +704,66 @@ func (m Model) viewForm() string {
 		Foreground(lipgloss.Color("#FFFFFF")).
 		Padding(0, 2)
 
-	s.WriteString(submitStyle.Render("保存 (Enter)") + " ")
-	s.WriteString(cancelStyle.Render("取消 (ESC)") + "\n\n")
+	formContent.WriteString(submitStyle.Render("保存 (Enter)") + " ")
+	formContent.WriteString(cancelStyle.Render("取消 (ESC)") + "\n\n")
 
 	// Help
 	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#8E8E93"))
-	s.WriteString(helpStyle.Render("Tab: 下一项 • Shift+Tab: 上一项"))
+	helpText := "Tab: 下一项 • Shift+Tab: 上一项"
+	if m.focusIndex == 4 {
+		helpText = "→: 显示模型选项 • ←: 隐藏模型选项 • Tab: 下一项"
+	}
+	formContent.WriteString(helpStyle.Render(helpText))
 
-	return s.String()
+	// 如果焦点在 Default Sonnet Model 字段，且选择器激活，显示侧边栏
+	if m.focusIndex == 4 && m.modelSelectorActive {
+		// 构建模型选择器面板
+		var selectorContent strings.Builder
+		selectorTitle := lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("#007AFF")).
+			Padding(0, 1).
+			Render("预定义模型")
+		selectorContent.WriteString(selectorTitle + "\n\n")
+
+		for i, model := range predefinedModels {
+			if i == m.modelSelectorCursor {
+				// 高亮选中的模型
+				selectedStyle := lipgloss.NewStyle().
+					Background(lipgloss.Color("#007AFF")).
+					Foreground(lipgloss.Color("#FFFFFF")).
+					Bold(true).
+					Padding(0, 1)
+				selectorContent.WriteString(selectedStyle.Render("● "+model) + "\n")
+			} else {
+				normalStyle := lipgloss.NewStyle().Padding(0, 1)
+				selectorContent.WriteString(normalStyle.Render("○ "+model) + "\n")
+			}
+		}
+
+		selectorContent.WriteString("\n")
+		selectorHelp := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#8E8E93")).
+			Render("↑/↓: 选择 • Enter: 确认")
+		selectorContent.WriteString(selectorHelp)
+
+		// 给选择器面板添加边框
+		selectorPanel := lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("#007AFF")).
+			Padding(1, 2).
+			Render(selectorContent.String())
+
+		// 使用 JoinHorizontal 将表单和选择器并排显示
+		return lipgloss.JoinHorizontal(
+			lipgloss.Top,
+			formContent.String(),
+			"  ", // 间距
+			selectorPanel,
+		)
+	}
+
+	return formContent.String()
 }
 
 func (m Model) viewDelete() string {
