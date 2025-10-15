@@ -95,7 +95,7 @@ release:
   header: |
     ## cc-switch-cli v{{.Version}}
 
-    跨平台 Claude/Codex 配置管理工具
+    跨平台 ClaudeCode/Codex 配置管理工具
 
   footer: |
     ---
