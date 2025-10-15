@@ -84,6 +84,74 @@ git push origin v1.0.0
 - ✅ `checksums.txt`
 - ✅ Source code (zip/tar.gz)
 
+## 在非 master 分支发布
+
+### 方案一：推荐做法（先合并到 master）
+
+```bash
+# 假设你在 feature-branch 上开发完成
+
+# 1. 确保代码质量
+go test ./...
+go fmt ./...
+
+# 2. 提交当前分支的修改
+git add .
+git commit -m "feat: Add awesome new feature"
+git push origin feature-branch
+
+# 3. 切换到 master 分支
+git checkout master
+
+# 4. 合并 feature 分支
+git merge feature-branch
+
+# 5. 推送 master
+git push origin master
+
+# 6. 在 master 分支上打 tag 并推送
+git tag -a v1.1.0 -m "Release v1.1.0"
+git push origin v1.1.0
+```
+
+**优点**：
+- 保持 master 分支为发布分支
+- Release 和 master 分支历史一致
+- 符合 Git Flow 最佳实践
+
+### 方案二：直接从功能分支发布（不推荐）
+
+```bash
+# 假设你在 feature-branch 上
+
+# 1. 确保代码质量
+go test ./...
+go fmt ./...
+
+# 2. 提交修改
+git add .
+git commit -m "feat: Add awesome new feature"
+git push origin feature-branch
+
+# 3. 直接在当前分支打 tag
+git tag -a v1.1.0 -m "Release v1.1.0"
+git push origin v1.1.0
+
+# 4. GitHub Actions 会从 feature-branch 的代码构建发布
+
+# 5. 发布后再合并到 master
+git checkout master
+git merge feature-branch
+git push origin master
+```
+
+**缺点**：
+- Release 的代码基于功能分支，不基于 master
+- master 分支的历史和 Release tag 不一致
+- 可能导致混乱（用户不知道 Release 基于哪个分支）
+
+**说明**：当前的 GitHub Actions 配置不限制分支，任何分支推送 `v*.*.*` 格式的 tag 都会触发构建。但为了保持项目历史清晰，强烈建议使用方案一。
+
 ## 后续版本发布流程
 
 ### 准备新版本
