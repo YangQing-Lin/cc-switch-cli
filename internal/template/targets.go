@@ -19,16 +19,16 @@ func GetClaudeMdTargets() ([]TemplateTarget, error) {
 
 	return []TemplateTarget{
 		{
-			ID:          "project_root",
-			Name:        "./CLAUDE.md",
-			Path:        filepath.Join(cwd, "CLAUDE.md"),
-			Description: "项目根目录配置",
-		},
-		{
 			ID:          "global",
 			Name:        "~/.claude/CLAUDE.md",
 			Path:        filepath.Join(homeDir, ".claude", "CLAUDE.md"),
 			Description: "全局 Claude 配置",
+		},
+		{
+			ID:          "project_root",
+			Name:        "./CLAUDE.md",
+			Path:        filepath.Join(cwd, "CLAUDE.md"),
+			Description: "项目根目录配置",
 		},
 		{
 			ID:          "local",

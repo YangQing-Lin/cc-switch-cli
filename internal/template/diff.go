@@ -4,33 +4,25 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/sergi/go-diff/diffmatchpatch"
+	"github.com/aymanbagabas/go-udiff"
 )
 
 // GenerateDiff 生成两个文本之间的 unified diff
 func GenerateDiff(oldText, newText, oldLabel, newLabel string) string {
-	dmp := diffmatchpatch.New()
-	diffs := dmp.DiffMain(oldText, newText, false)
-
-	if len(diffs) == 0 || (len(diffs) == 1 && diffs[0].Type == diffmatchpatch.DiffEqual) {
-		return "No differences found."
+	// 检查是否完全相同
+	if oldText == newText {
+		return "未发现差异"
 	}
 
-	// 生成 unified diff 格式
-	patches := dmp.PatchMake(oldText, diffs)
-	unified := dmp.PatchToText(patches)
+	// 使用 go-udiff 生成 unified diff，它原生支持 UTF-8 和中文
+	edits := udiff.Strings(oldText, newText)
+	unified := fmt.Sprint(udiff.ToUnified(oldLabel, newLabel, oldText, edits, 3))
 
-	if unified == "" {
-		return "No differences found."
+	if unified == "" || len(edits) == 0 {
+		return "未发现差异"
 	}
 
-	// 添加文件头
-	var result strings.Builder
-	result.WriteString(fmt.Sprintf("--- %s\n", oldLabel))
-	result.WriteString(fmt.Sprintf("+++ %s\n", newLabel))
-	result.WriteString(unified)
-
-	return result.String()
+	return unified
 }
 
 // FormatDiffForCLI 为 CLI 输出格式化 diff（带颜色）

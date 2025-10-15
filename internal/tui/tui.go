@@ -11,6 +11,7 @@ import (
 	"github.com/YangQing-Lin/cc-switch-cli/internal/backup"
 	"github.com/YangQing-Lin/cc-switch-cli/internal/config"
 	"github.com/YangQing-Lin/cc-switch-cli/internal/i18n"
+	"github.com/YangQing-Lin/cc-switch-cli/internal/template"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -31,7 +32,7 @@ type Model struct {
 	height              int
 	err                 error
 	message             string
-	mode                string // "list", "add", "edit", "delete", "app_select", "backup_list"
+	mode                string // "list", "add", "edit", "delete", "app_select", "backup_list", "template_manager"
 	editName            string // 正在编辑的配置名称
 	deleteName          string // 要删除的配置名称
 	inputs              []textinput.Model
@@ -45,6 +46,27 @@ type Model struct {
 	backupCursor        int                 // 备份列表光标
 	modelSelectorActive bool                // 模型选择器是否激活
 	modelSelectorCursor int                 // 模型选择器光标位置
+
+	// 模板管理相关字段
+	templateManager *template.TemplateManager // 模板管理器实例
+	templates       []template.Template       // 当前显示的模板列表
+	templateCursor  int                       // 模板列表光标位置
+	templateMode    string                    // 模板子模式状态机
+
+	// 应用模板流程
+	selectedTemplate   *template.Template // 当前选中的模板
+	targetSelectCursor int                // 目标路径选择光标（0-2）
+	selectedTargetPath string             // 选中的目标路径（绝对路径）
+	diffContent        string             // 生成的 diff 内容
+	diffScrollOffset   int                // diff 查看滚动偏移量
+
+	// 保存模板流程
+	sourceSelectCursor int             // 源路径选择光标（0-2）
+	selectedSourcePath string          // 选中的源路径
+	saveNameInput      textinput.Model // 模板名称输入框
+
+	// 预览流程
+	previewScrollOffset int // 预览内容滚动偏移量
 }
 
 // tickMsg is sent on every tick for config refresh
@@ -58,13 +80,26 @@ func New(manager *config.Manager) Model {
 		modTime = info.ModTime()
 	}
 
+	// 初始化模板管理器
+	homeDir, _ := os.UserHomeDir()
+	templateConfigPath := filepath.Join(homeDir, ".cc-switch", "claude_templates.json")
+	templateManager, err := template.NewTemplateManager(templateConfigPath)
+	var initErr error
+	if err != nil {
+		initErr = fmt.Errorf("初始化模板管理器失败: %w", err)
+	}
+
 	m := Model{
-		manager:     manager,
-		mode:        "list",
-		currentApp:  "claude", // 默认显示 Claude
-		appCursor:   0,
-		configPath:  configPath,
-		lastModTime: modTime,
+		manager:         manager,
+		mode:            "list",
+		currentApp:      "claude",
+		appCursor:       0,
+		configPath:      configPath,
+		lastModTime:     modTime,
+		templateManager: templateManager,
+	}
+	if initErr != nil {
+		m.err = initErr
 	}
 	m.refreshProviders()
 	return m
@@ -72,6 +107,14 @@ func New(manager *config.Manager) Model {
 
 func (m *Model) refreshProviders() {
 	m.providers = m.manager.ListProvidersForApp(m.currentApp)
+}
+
+func (m *Model) refreshTemplates() {
+	if m.templateManager == nil {
+		return
+	}
+	allTemplates := m.templateManager.ListTemplates(template.CategoryClaudeMd)
+	m.templates = allTemplates
 }
 
 // syncModTime updates the cached modification time after internal config changes
@@ -157,6 +200,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.handleAppSelectKeys(msg)
 		case "backup_list":
 			return m.handleBackupListKeys(msg)
+		case "template_manager":
+			switch m.templateMode {
+			case "list":
+				return m.handleTemplateListKeys(msg)
+			case "apply_select_target":
+				return m.handleTargetSelectKeys(msg)
+			case "apply_preview_diff":
+				return m.handleDiffPreviewKeys(msg)
+			case "save_select_source":
+				return m.handleSourceSelectKeys(msg)
+			case "save_input_name":
+				return m.handleSaveNameKeys(msg)
+			case "preview":
+				return m.handlePreviewKeys(msg)
+			case "delete_confirm":
+				return m.handleDeleteConfirmKeys(msg)
+			}
 		}
 	}
 
@@ -175,6 +235,23 @@ func (m Model) View() string {
 		return m.viewAppSelect()
 	case "backup_list":
 		return m.viewBackupList()
+	case "template_manager":
+		switch m.templateMode {
+		case "list":
+			return m.viewTemplateList()
+		case "apply_select_target":
+			return m.viewTargetSelect()
+		case "apply_preview_diff":
+			return m.viewDiffPreview()
+		case "save_select_source":
+			return m.viewSourceSelect()
+		case "save_input_name":
+			return m.viewSaveNameInput()
+		case "preview":
+			return m.viewTemplatePreview()
+		case "delete_confirm":
+			return m.viewTemplateDelete()
+		}
 	}
 	return ""
 }
@@ -291,6 +368,19 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.backupList = backups
 			m.backupCursor = 0
 			m.mode = "backup_list"
+			m.message = ""
+			m.err = nil
+		}
+	case "m":
+		// Template manager
+		if m.templateManager == nil {
+			m.err = errors.New("模板管理器未初始化")
+			m.message = ""
+		} else {
+			m.mode = "template_manager"
+			m.templateMode = "list"
+			m.refreshTemplates()
+			m.templateCursor = 0
 			m.message = ""
 			m.err = nil
 		}
@@ -603,6 +693,7 @@ func (m Model) viewList() string {
 		"d: 删除",
 		"b: 备份",
 		"l: 备份列表",
+		"m: 模板管理",
 		"t: 切换应用",
 		"c: Claude",
 		"x: Codex",
