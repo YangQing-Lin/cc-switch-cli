@@ -252,3 +252,4 @@ wire_api = "responses"
 - 配置存储在 `./data/.cc-switch/`
 - Live 配置存储在 `./data/.claude/` 和 `./data/.codex/`
 - 适合 U 盘或绿色部署
+- 代码修改完成之后，编译之前都需要对整个项目执行一次 go fmt 命令来格式化代码
