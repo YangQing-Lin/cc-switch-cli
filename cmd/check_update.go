@@ -28,7 +28,7 @@ var checkUpdateCmd = &cobra.Command{
 			if release.Body != "" {
 				fmt.Printf("\n更新说明:\n%s\n", release.Body)
 			}
-			fmt.Printf("\n运行以下命令更新到最新版本:\n  ccs self-update\n")
+			fmt.Printf("\n运行以下命令更新到最新版本:\n  ccs update\n")
 		} else {
 			fmt.Println("✅ 当前已是最新版本")
 		}
