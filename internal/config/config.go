@@ -379,13 +379,27 @@ func (m *Manager) AddProviderForApp(appName, name, websiteURL, apiToken, baseURL
 
 	app.Providers[id] = provider
 
-	// 如果是第一个配置，自动设置为当前配置
-	if len(app.Providers) == 1 {
+	// 如果是第一个配置，自动设置为当前配置并立即写入 live 配置
+	isFirstProvider := len(app.Providers) == 1
+	if isFirstProvider {
 		app.Current = id
 	}
 
 	m.config.Apps[appName] = app
-	return m.Save()
+
+	// 先保存到内存配置文件
+	if err := m.Save(); err != nil {
+		return err
+	}
+
+	// 如果是第一个配置，立即写入 live 配置文件
+	if isFirstProvider {
+		if err := m.writeProviderConfig(appName, &provider); err != nil {
+			return fmt.Errorf("保存配置成功，但写入 live 配置失败: %w", err)
+		}
+	}
+
+	return nil
 }
 
 // AddProviderDirect 直接添加 Provider 对象（用于导入）

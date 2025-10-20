@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -67,6 +68,15 @@ type Model struct {
 
 	// 预览流程
 	previewScrollOffset int // 预览内容滚动偏移量
+
+	// 撤销历史栈（用于清空后的回退操作）
+	undoHistory []struct {
+		name         string
+		token        string
+		baseURL      string
+		websiteURL   string
+		defaultModel string
+	}
 }
 
 // tickMsg is sent on every tick for config refresh
@@ -273,17 +283,24 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if len(m.providers) > 0 {
 			provider := m.providers[m.cursor]
 			current := m.manager.GetCurrentProviderForApp(m.currentApp)
-			if current == nil || provider.ID != current.ID {
-				err := m.manager.SwitchProviderForApp(m.currentApp, provider.Name)
-				if err != nil {
-					m.err = err
-					m.message = ""
-				} else {
+
+			// 判断是切换还是覆盖
+			isSwitch := current == nil || provider.ID != current.ID
+
+			// 无论是否已激活，都执行切换操作（如果已激活则是覆盖）
+			err := m.manager.SwitchProviderForApp(m.currentApp, provider.Name)
+			if err != nil {
+				m.err = err
+				m.message = ""
+			} else {
+				if isSwitch {
 					m.message = i18n.T("success.switched_to") + ": " + provider.Name
-					m.err = nil
-					m.refreshProviders()
-					m.syncModTime()
+				} else {
+					m.message = "✓ 已覆盖 live 配置: " + provider.Name
 				}
+				m.err = nil
+				m.refreshProviders()
+				m.syncModTime()
 			}
 		}
 	case "a":
@@ -434,6 +451,15 @@ func (m Model) handleFormKeys(msg tea.KeyMsg) (bool, tea.Model, tea.Cmd) {
 	}
 
 	switch msg.String() {
+	case "ctrl+d":
+		// 清空当前表单的所有内容（通用功能）
+		m.clearFormFields()
+		return true, m, nil
+	case "ctrl+z":
+		// 回退上一次清空操作
+		if m.undoLastClear() {
+			return true, m, nil
+		}
 	case "esc":
 		// 如果模型选择器激活，先关闭选择器
 		if m.modelSelectorActive {
@@ -795,8 +821,42 @@ func (m Model) viewForm() string {
 		Foreground(lipgloss.Color("#FFFFFF")).
 		Padding(0, 2)
 
+	// 清空按钮（始终显示，根据是否有内容决定样式）
+	clearStyle := lipgloss.NewStyle()
+	if m.anyFieldHasValue() {
+		// 有内容，高亮显示
+		clearStyle = clearStyle.
+			Background(lipgloss.Color("#FF9500")).
+			Foreground(lipgloss.Color("#FFFFFF")).
+			Padding(0, 2)
+	} else {
+		// 无内容，灰色显示
+		clearStyle = clearStyle.
+			Background(lipgloss.Color("#3A3A3C")).
+			Foreground(lipgloss.Color("#636366")).
+			Padding(0, 2)
+	}
+
+	// 回退按钮（始终显示，根据是否有历史记录决定样式）
+	undoStyle := lipgloss.NewStyle()
+	if len(m.undoHistory) > 0 {
+		// 有历史记录，高亮显示
+		undoStyle = undoStyle.
+			Background(lipgloss.Color("#34C759")).
+			Foreground(lipgloss.Color("#FFFFFF")).
+			Padding(0, 2)
+	} else {
+		// 无历史记录，灰色显示
+		undoStyle = undoStyle.
+			Background(lipgloss.Color("#3A3A3C")).
+			Foreground(lipgloss.Color("#636366")).
+			Padding(0, 2)
+	}
+
 	formContent.WriteString(submitStyle.Render("保存 (Enter)") + " ")
-	formContent.WriteString(cancelStyle.Render("取消 (ESC)") + "\n\n")
+	formContent.WriteString(cancelStyle.Render("取消 (ESC)") + " ")
+	formContent.WriteString(clearStyle.Render("清空内容 (Ctrl+D)") + " ")
+	formContent.WriteString(undoStyle.Render("回退 (Ctrl+Z)") + "\n\n")
 
 	// Help
 	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#8E8E93"))
@@ -1009,6 +1069,105 @@ func (m Model) handleBackupListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 // Helper functions
+
+// clearFormFields 清空表单所有字段并保存到历史栈
+func (m *Model) clearFormFields() {
+	// 只有在有值的情况下才保存到历史栈
+	if m.anyFieldHasValue() {
+		m.undoHistory = append(m.undoHistory, struct {
+			name         string
+			token        string
+			baseURL      string
+			websiteURL   string
+			defaultModel string
+		}{
+			name:         m.inputs[0].Value(),
+			token:        m.inputs[1].Value(),
+			baseURL:      m.inputs[2].Value(),
+			websiteURL:   m.inputs[3].Value(),
+			defaultModel: m.inputs[4].Value(),
+		})
+	}
+
+	// 清空所有字段（包括配置名称）
+	m.inputs[0].SetValue("") // Name
+	m.inputs[1].SetValue("") // Token
+	m.inputs[2].SetValue("") // Base URL
+	m.inputs[3].SetValue("") // Website URL
+	m.inputs[4].SetValue("") // Default Model
+}
+
+// anyFieldHasValue 检查表单是否有任何非空字段
+func (m *Model) anyFieldHasValue() bool {
+	// 检查所有字段是否有值
+	return m.inputs[0].Value() != "" || // Name
+		m.inputs[1].Value() != "" || // Token
+		m.inputs[2].Value() != "" || // Base URL
+		m.inputs[3].Value() != "" || // Website URL
+		m.inputs[4].Value() != "" // Default Model
+}
+
+// undoLastClear 回退上一次清空操作
+func (m *Model) undoLastClear() bool {
+	if len(m.undoHistory) == 0 {
+		return false // 没有历史记录
+	}
+
+	// 从栈顶取出最后一次的值
+	lastState := m.undoHistory[len(m.undoHistory)-1]
+	m.undoHistory = m.undoHistory[:len(m.undoHistory)-1]
+
+	// 恢复所有字段
+	m.inputs[0].SetValue(lastState.name)
+	m.inputs[1].SetValue(lastState.token)
+	m.inputs[2].SetValue(lastState.baseURL)
+	m.inputs[3].SetValue(lastState.websiteURL)
+	m.inputs[4].SetValue(lastState.defaultModel)
+
+	return true
+}
+
+// loadLiveConfigForForm 从 live 配置文件加载配置（用于表单自动填充）
+func (m *Model) loadLiveConfigForForm() (token, baseURL, defaultModel string, loaded bool) {
+	// 只支持 Claude 应用的自动加载
+	if m.currentApp != "claude" {
+		return "", "", "", false
+	}
+
+	settingsPath, err := config.GetClaudeSettingsPath()
+	if err != nil || !fileExists(settingsPath) {
+		return "", "", "", false
+	}
+
+	data, err := os.ReadFile(settingsPath)
+	if err != nil {
+		return "", "", "", false
+	}
+
+	var liveSettings config.ClaudeSettings
+	if err := json.Unmarshal(data, &liveSettings); err != nil {
+		return "", "", "", false
+	}
+
+	// 提取配置
+	token = liveSettings.Env.AnthropicAuthToken
+	baseURL = liveSettings.Env.AnthropicBaseURL
+	defaultModel = liveSettings.Env.AnthropicDefaultSonnetModel
+
+	// 只有 token 和 baseURL 都存在才算成功加载
+	if token != "" && baseURL != "" {
+		return token, baseURL, defaultModel, true
+	}
+
+	return "", "", "", false
+}
+
+// fileExists 检查文件是否存在
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
 func (m *Model) initForm(provider *config.Provider) {
 	m.inputs = make([]textinput.Model, 5)
 	m.focusIndex = 0
@@ -1047,6 +1206,7 @@ func (m *Model) initForm(provider *config.Provider) {
 
 	// Fill existing data
 	if provider != nil {
+		// 编辑模式：使用现有配置
 		m.inputs[0].SetValue(provider.Name)
 
 		token := config.ExtractTokenFromProvider(provider)
@@ -1057,6 +1217,18 @@ func (m *Model) initForm(provider *config.Provider) {
 		m.inputs[2].SetValue(baseURL)
 		m.inputs[3].SetValue(provider.WebsiteURL)
 		m.inputs[4].SetValue(defaultSonnetModel)
+	} else {
+		// 创建模式：只有当前应用没有配置时才自动加载
+		if len(m.providers) == 0 {
+			token, baseURL, defaultModel, loaded := m.loadLiveConfigForForm()
+			if loaded {
+				m.inputs[1].SetValue(token)
+				m.inputs[2].SetValue(baseURL)
+				if defaultModel != "" {
+					m.inputs[4].SetValue(defaultModel)
+				}
+			}
+		}
 	}
 }
 
