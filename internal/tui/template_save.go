@@ -133,7 +133,7 @@ func (m Model) viewSourceSelect() string {
 		Bold(true).
 		Foreground(lipgloss.Color("#007AFF")).
 		Padding(0, 1).
-		Render("保存为模板")
+		Render(fmt.Sprintf("保存为模板 (v%s)", m.getVersion()))
 	s.WriteString(title + "\n\n")
 
 	s.WriteString("选择源文件:\n\n")
@@ -213,7 +213,7 @@ func (m Model) viewSaveNameInput() string {
 		Bold(true).
 		Foreground(lipgloss.Color("#007AFF")).
 		Padding(0, 1).
-		Render("保存为模板")
+		Render(fmt.Sprintf("保存为模板 (v%s)", m.getVersion()))
 	s.WriteString(title + "\n\n")
 
 	s.WriteString(fmt.Sprintf("源文件: %s\n\n", m.selectedSourcePath))

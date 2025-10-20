@@ -113,7 +113,7 @@ func (m Model) viewTargetSelect() string {
 		Bold(true).
 		Foreground(lipgloss.Color("#007AFF")).
 		Padding(0, 1).
-		Render(fmt.Sprintf("应用模板: %s", m.selectedTemplate.Name))
+		Render(fmt.Sprintf("应用模板: %s (v%s)", m.selectedTemplate.Name, m.getVersion()))
 	s.WriteString(title + "\n\n")
 
 	s.WriteString("选择目标路径:\n\n")
@@ -179,7 +179,7 @@ func (m Model) viewDiffPreview() string {
 		Bold(true).
 		Foreground(lipgloss.Color("#007AFF")).
 		Padding(0, 1).
-		Render("Diff 预览")
+		Render(fmt.Sprintf("Diff 预览 (v%s)", m.getVersion()))
 	s.WriteString(title + "\n\n")
 
 	s.WriteString(fmt.Sprintf("模板: %s\n", m.selectedTemplate.Name))

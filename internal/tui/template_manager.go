@@ -75,7 +75,7 @@ func (m Model) viewTemplateList() string {
 		Bold(true).
 		Foreground(lipgloss.Color("#007AFF")).
 		Padding(0, 1).
-		Render("模板管理")
+		Render(fmt.Sprintf("模板管理 (v%s)", m.getVersion()))
 	s.WriteString(title + "\n\n")
 
 	if m.err != nil {

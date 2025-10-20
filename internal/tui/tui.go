@@ -13,6 +13,7 @@ import (
 	"github.com/YangQing-Lin/cc-switch-cli/internal/config"
 	"github.com/YangQing-Lin/cc-switch-cli/internal/i18n"
 	"github.com/YangQing-Lin/cc-switch-cli/internal/template"
+	"github.com/YangQing-Lin/cc-switch-cli/internal/version"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -80,10 +81,25 @@ type Model struct {
 
 	// 复制配置相关
 	copyFromProvider *config.Provider // 从哪个配置复制（用于创建时预填充）
+
+	// 更新相关
+	latestRelease *version.ReleaseInfo // 最新版本信息
 }
 
 // tickMsg is sent on every tick for config refresh
 type tickMsg time.Time
+
+// updateCheckMsg is sent when update check completes
+type updateCheckMsg struct {
+	release   *version.ReleaseInfo
+	hasUpdate bool
+	err       error
+}
+
+// updateDownloadMsg is sent when update download completes
+type updateDownloadMsg struct {
+	err error
+}
 
 // New 创建新的 TUI 模型
 func New(manager *config.Manager) Model {
@@ -182,6 +198,28 @@ func tickCmd() tea.Cmd {
 	})
 }
 
+// checkUpdateCmd returns a command that checks for updates
+func checkUpdateCmd() tea.Cmd {
+	return func() tea.Msg {
+		release, hasUpdate, err := version.CheckForUpdate()
+		return updateCheckMsg{
+			release:   release,
+			hasUpdate: hasUpdate,
+			err:       err,
+		}
+	}
+}
+
+// downloadUpdateCmd returns a command that downloads and installs update
+func downloadUpdateCmd(release *version.ReleaseInfo) tea.Cmd {
+	return func() tea.Msg {
+		err := version.DownloadUpdate(release)
+		return updateDownloadMsg{
+			err: err,
+		}
+	}
+}
+
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -194,6 +232,31 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.checkConfigChanges()
 		}
 		return m, tickCmd()
+
+	case updateCheckMsg:
+		if msg.err != nil {
+			m.err = fmt.Errorf("检查更新失败: %w", msg.err)
+			m.message = ""
+			m.latestRelease = nil
+		} else if msg.hasUpdate {
+			m.message = fmt.Sprintf("发现新版本 %s！按 'U' 键下载更新", msg.release.TagName)
+			m.err = nil
+			m.latestRelease = msg.release
+		} else {
+			m.message = "当前已是最新版本"
+			m.err = nil
+			m.latestRelease = nil
+		}
+
+	case updateDownloadMsg:
+		if msg.err != nil {
+			m.err = fmt.Errorf("更新失败: %w", msg.err)
+			m.message = ""
+		} else {
+			m.message = "✓ 更新成功！请退出并重新运行程序"
+			m.err = nil
+			m.latestRelease = nil
+		}
 
 	case tea.KeyMsg:
 		switch m.mode {
@@ -414,6 +477,21 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.templateCursor = 0
 			m.message = ""
 			m.err = nil
+		}
+	case "u":
+		// Check for updates
+		m.message = "正在检查更新..."
+		m.err = nil
+		return m, checkUpdateCmd()
+	case "U":
+		// Download and install update (if available)
+		if m.latestRelease != nil {
+			m.message = "正在下载更新..."
+			m.err = nil
+			return m, downloadUpdateCmd(m.latestRelease)
+		} else {
+			m.err = errors.New("没有可用的更新，请先按 'u' 检查更新")
+			m.message = ""
 		}
 	}
 	return m, nil
@@ -647,7 +725,7 @@ func (m Model) handleAppSelectKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m Model) viewList() string {
 	var s strings.Builder
 
-	// Title with current app indicator
+	// Title with current app indicator and version
 	appName := "Claude Code"
 	if m.currentApp == "codex" {
 		appName = "Codex CLI"
@@ -657,7 +735,7 @@ func (m Model) viewList() string {
 		Bold(true).
 		Foreground(lipgloss.Color("#007AFF")).
 		Padding(0, 1).
-		Render(fmt.Sprintf("CC Switch - %s 配置管理", appName))
+		Render(fmt.Sprintf("CC Switch v%s - %s 配置管理", m.getVersion(), appName))
 	s.WriteString(title + "\n\n")
 
 	// Status message
@@ -738,6 +816,8 @@ func (m Model) viewList() string {
 		"t: 切换应用",
 		"c: Claude",
 		"x: Codex",
+		"u: 检查更新",
+		"U: 执行更新",
 		"r: 刷新",
 		"q: 退出",
 	}
@@ -764,7 +844,7 @@ func (m Model) viewAppSelect() string {
 		Bold(true).
 		Foreground(lipgloss.Color("#007AFF")).
 		Padding(0, 1).
-		Render("选择应用")
+		Render(fmt.Sprintf("选择应用 (v%s)", m.getVersion()))
 	s.WriteString(title + "\n\n")
 
 	apps := []string{"Claude Code", "Codex CLI"}
@@ -800,9 +880,9 @@ func (m Model) viewForm() string {
 		Padding(0, 1)
 
 	if m.mode == "add" {
-		formContent.WriteString(title.Render("添加新配置") + "\n\n")
+		formContent.WriteString(title.Render(fmt.Sprintf("添加新配置 (v%s)", m.getVersion())) + "\n\n")
 	} else {
-		formContent.WriteString(title.Render("编辑配置") + "\n\n")
+		formContent.WriteString(title.Render(fmt.Sprintf("编辑配置 (v%s)", m.getVersion())) + "\n\n")
 	}
 
 	// Error
@@ -939,7 +1019,7 @@ func (m Model) viewDelete() string {
 		Bold(true).
 		Foreground(lipgloss.Color("#007AFF")).
 		Padding(0, 1).
-		Render("确认删除")
+		Render(fmt.Sprintf("确认删除 (v%s)", m.getVersion()))
 	s.WriteString(title + "\n\n")
 
 	msg := fmt.Sprintf("确定要删除配置 '%s' 吗？", m.deleteName)
@@ -976,7 +1056,7 @@ func (m Model) viewBackupList() string {
 		Bold(true).
 		Foreground(lipgloss.Color("#007AFF")).
 		Padding(0, 1).
-		Render("备份列表")
+		Render(fmt.Sprintf("备份列表 (v%s)", m.getVersion()))
 	s.WriteString(title + "\n\n")
 
 	// Status message
@@ -1269,4 +1349,9 @@ func (m Model) updateInputs(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.inputs[i], cmds[i] = m.inputs[i].Update(msg)
 	}
 	return m, tea.Batch(cmds...)
+}
+
+// getVersion 获取版本号
+func (m Model) getVersion() string {
+	return version.GetVersion()
 }

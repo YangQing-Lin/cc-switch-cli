@@ -43,7 +43,7 @@ func (m Model) viewTemplateDelete() string {
 		Bold(true).
 		Foreground(lipgloss.Color("#007AFF")).
 		Padding(0, 1).
-		Render("确认删除")
+		Render(fmt.Sprintf("确认删除 (v%s)", m.getVersion()))
 	s.WriteString(title + "\n\n")
 
 	s.WriteString("确定要删除模板吗？\n\n")

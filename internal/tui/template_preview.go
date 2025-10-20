@@ -55,7 +55,7 @@ func (m Model) viewTemplatePreview() string {
 		Bold(true).
 		Foreground(lipgloss.Color("#007AFF")).
 		Padding(0, 1).
-		Render(fmt.Sprintf("预览: %s", m.selectedTemplate.Name))
+		Render(fmt.Sprintf("预览: %s (v%s)", m.selectedTemplate.Name, m.getVersion()))
 	s.WriteString(title + "\n")
 
 	infoStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#8E8E93"))
