@@ -77,6 +77,9 @@ type Model struct {
 		websiteURL   string
 		defaultModel string
 	}
+
+	// 复制配置相关
+	copyFromProvider *config.Provider // 从哪个配置复制（用于创建时预填充）
 }
 
 // tickMsg is sent on every tick for config refresh
@@ -306,8 +309,19 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "a":
 		m.mode = "add"
 		m.editName = ""
+		m.copyFromProvider = nil // 清空复制源
 		m.initForm(nil)
 		return m, textinput.Blink
+	case "C":
+		// 复制当前选中的配置并进入创建模式
+		if len(m.providers) > 0 {
+			provider := m.providers[m.cursor]
+			m.mode = "add"
+			m.editName = ""
+			m.copyFromProvider = &provider // 设置复制源
+			m.initForm(nil)
+			return m, textinput.Blink
+		}
 	case "e":
 		if len(m.providers) > 0 {
 			provider := m.providers[m.cursor]
@@ -715,6 +729,7 @@ func (m Model) viewList() string {
 		"↑/↓: 选择",
 		"Enter: 切换",
 		"a: 添加",
+		"C: 复制",
 		"e: 编辑",
 		"d: 删除",
 		"b: 备份",
@@ -1217,6 +1232,22 @@ func (m *Model) initForm(provider *config.Provider) {
 		m.inputs[2].SetValue(baseURL)
 		m.inputs[3].SetValue(provider.WebsiteURL)
 		m.inputs[4].SetValue(defaultSonnetModel)
+	} else if m.copyFromProvider != nil {
+		// 复制模式：从 copyFromProvider 预填充（除了名称）
+		// 名称留空，让用户输入新名称（避免重复）
+		m.inputs[0].SetValue("") // 名称留空
+
+		token := config.ExtractTokenFromProvider(m.copyFromProvider)
+		baseURL := config.ExtractBaseURLFromProvider(m.copyFromProvider)
+		defaultSonnetModel := config.ExtractDefaultSonnetModelFromProvider(m.copyFromProvider)
+
+		m.inputs[1].SetValue(token)
+		m.inputs[2].SetValue(baseURL)
+		m.inputs[3].SetValue(m.copyFromProvider.WebsiteURL)
+		m.inputs[4].SetValue(defaultSonnetModel)
+
+		// 复制完成后清空 copyFromProvider，避免影响后续操作
+		m.copyFromProvider = nil
 	} else {
 		// 创建模式：只有当前应用没有配置时才自动加载
 		if len(m.providers) == 0 {
