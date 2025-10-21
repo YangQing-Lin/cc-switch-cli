@@ -409,6 +409,7 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.refreshProviders()
 		m.message = "列表已刷新"
 		m.err = nil
+		return m, tea.ClearScreen
 	case "t":
 		// Toggle between Claude and Codex
 		if m.currentApp == "claude" {
