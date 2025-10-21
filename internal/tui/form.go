@@ -403,7 +403,7 @@ func (m *Model) initForm(provider *config.Provider) {
 func (m Model) updateInputs(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmds := make([]tea.Cmd, len(m.inputs))
 	for i := range m.inputs {
-		if i == 4 || i == 5 {
+		if i == m.focusIndex && i == 4 {
 			if keyMsg, ok := msg.(tea.KeyMsg); ok {
 				switch keyMsg.Type {
 				case tea.KeyRunes, tea.KeyBackspace, tea.KeyDelete, tea.KeySpace:
