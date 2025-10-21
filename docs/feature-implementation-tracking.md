@@ -443,8 +443,8 @@ type MultiAppConfig struct {
   - 按 `c` 键：直接切换到 Claude
   - 按 `x` 键：直接切换到 Codex
 - ✅ 动态标题显示：
-  - "CC Switch - Claude Code 配置管理"
-  - "CC Switch - Codex CLI 配置管理"
+  - "CC Switch CLI - Claude Code 配置管理"
+  - "CC Switch CLI - Codex CLI 配置管理"
 - ✅ 应用选择界面：
   - 可视化应用选择（app_select 模式）
   - 键盘导航选择应用

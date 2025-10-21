@@ -735,7 +735,7 @@ func (m Model) viewList() string {
 		Bold(true).
 		Foreground(lipgloss.Color("#007AFF")).
 		Padding(0, 1).
-		Render(fmt.Sprintf("CC Switch v%s - %s 配置管理", m.getVersion(), appName))
+		Render(fmt.Sprintf("CC Switch CLI v%s - %s 配置管理", m.getVersion(), appName))
 	s.WriteString(title + "\n\n")
 
 	// Status message
