@@ -954,9 +954,9 @@ func (m Model) viewForm() string {
 			Foreground(lipgloss.Color("#FFFFFF")).
 			Padding(0, 2)
 	} else {
-		// 无内容，灰色显示
+		// 无内容，浅灰色背景+深灰色文字（禁用样式）
 		clearStyle = clearStyle.
-			Background(lipgloss.Color("#3A3A3C")).
+			Background(lipgloss.Color("#E5E5EA")).
 			Foreground(lipgloss.Color("#636366")).
 			Padding(0, 2)
 	}
@@ -970,9 +970,9 @@ func (m Model) viewForm() string {
 			Foreground(lipgloss.Color("#FFFFFF")).
 			Padding(0, 2)
 	} else {
-		// 无历史记录，灰色显示
+		// 无历史记录，浅灰色背景+深灰色文字（禁用样式）
 		undoStyle = undoStyle.
-			Background(lipgloss.Color("#3A3A3C")).
+			Background(lipgloss.Color("#E5E5EA")).
 			Foreground(lipgloss.Color("#636366")).
 			Padding(0, 2)
 	}

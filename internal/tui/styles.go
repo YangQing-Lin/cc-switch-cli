@@ -96,8 +96,14 @@ var (
 
 	// 取消按钮样式
 	cancelButtonStyle = lipgloss.NewStyle().
-				Foreground(textColor).
+				Foreground(bgColor).
 				Background(subtleColor).
+				Padding(0, 2)
+
+	// 禁用按钮样式（浅灰色背景，深灰色文字）
+	disabledButtonStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#636366")).
+				Background(lipgloss.Color("#E5E5EA")).
 				Padding(0, 2)
 
 	// 对话框样式
