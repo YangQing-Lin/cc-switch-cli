@@ -403,6 +403,15 @@ func (m *Model) initForm(provider *config.Provider) {
 func (m Model) updateInputs(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmds := make([]tea.Cmd, len(m.inputs))
 	for i := range m.inputs {
+		if i == 4 || i == 5 {
+			if keyMsg, ok := msg.(tea.KeyMsg); ok {
+				switch keyMsg.Type {
+				case tea.KeyRunes, tea.KeyBackspace, tea.KeyDelete, tea.KeySpace:
+					m.err = errors.New(i18n.T("error.readonly_field"))
+					continue
+				}
+			}
+		}
 		m.inputs[i], cmds[i] = m.inputs[i].Update(msg)
 	}
 	return m, tea.Batch(cmds...)
