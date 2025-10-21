@@ -87,13 +87,5 @@ func (m *Manager) Save() error {
 		return fmt.Errorf("创建配置目录失败: %w", err)
 	}
 
-	if utils.FileExists(m.configPath) {
-		backupPath := m.configPath + ".bak.cli"
-		data, err := os.ReadFile(m.configPath)
-		if err == nil {
-			_ = os.WriteFile(backupPath, data, 0600)
-		}
-	}
-
 	return utils.WriteJSONFile(m.configPath, m.config, 0600)
 }

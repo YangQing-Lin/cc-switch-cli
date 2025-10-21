@@ -56,10 +56,6 @@ func (m *Manager) detectConfigVersion(raw map[string]json.RawMessage) (hasVersio
 
 func (m *Manager) handleCorruptedConfig(data []byte, err error) error {
 	fmt.Printf("警告: 配置文件损坏 (%v)，将创建默认配置\n", err)
-	backupPath := m.configPath + ".corrupted." + fmt.Sprintf("%d", time.Now().Unix())
-	if os.WriteFile(backupPath, data, 0600) == nil {
-		fmt.Printf("已备份损坏的配置到: %s\n", backupPath)
-	}
 
 	fmt.Println()
 	fmt.Println("💡 提示: 您可以使用以下命令从备份恢复配置:")
