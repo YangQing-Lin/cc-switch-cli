@@ -353,10 +353,11 @@ func (m *Manager) AddProviderForApp(appName, name, websiteURL, apiToken, baseURL
 		settingsConfig = map[string]interface{}{
 			"env": envMap,
 		}
-		// 如果提供了 claudeModel，添加到顶层
+		// 如果提供了 claudeModel，添加到顶层；否则不添加（保持默认）
 		if claudeModel != "" {
 			settingsConfig["model"] = claudeModel
 		}
+		// 注意：claudeModel == "" 时不添加 model 字段，这样 live 配置中就不会有该字段
 	case "codex":
 		// Codex 配置格式（符合 cc-switch 的格式）
 		// auth: { OPENAI_API_KEY: "..." }
@@ -667,7 +668,16 @@ func (m *Manager) backfillClaudeConfig() error {
 			if liveSettings.Env.ClaudeCodeMaxTokens != "" {
 				envMap["CLAUDE_CODE_MAX_TOKENS"] = liveSettings.Env.ClaudeCodeMaxTokens
 			}
+			if liveSettings.Env.AnthropicDefaultSonnetModel != "" {
+				envMap["ANTHROPIC_DEFAULT_SONNET_MODEL"] = liveSettings.Env.AnthropicDefaultSonnetModel
+			}
 		}
+
+		// 回填顶层 model 字段
+		if liveSettings.Model != "" {
+			currentProvider.SettingsConfig["model"] = liveSettings.Model
+		}
+
 		app.Providers[app.Current] = currentProvider
 		m.config.Apps["claude"] = app
 	}
@@ -807,6 +817,11 @@ func (m *Manager) writeClaudeConfig(provider *Provider) error {
 		if defaultSonnetModel, ok := envMap["ANTHROPIC_DEFAULT_SONNET_MODEL"].(string); ok {
 			settings.Env.AnthropicDefaultSonnetModel = defaultSonnetModel
 		}
+	}
+
+	// 写入顶层 model 字段
+	if model, ok := provider.SettingsConfig["model"].(string); ok {
+		settings.Model = model
 	}
 
 	// 保存设置
