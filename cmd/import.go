@@ -113,6 +113,7 @@ func importClaudeLive(manager *config.Manager, name string) error {
 		settings.Env.AnthropicAuthToken,
 		baseURL,
 		"imported",
+		"", // claudeModel
 		"") // defaultSonnetModel
 
 	if err != nil {
@@ -194,7 +195,7 @@ func importCodexLive(manager *config.Manager, name string) error {
 	}
 
 	// 添加配置
-	if err := manager.AddProviderForApp("codex", name, "", apiKey, baseURL, "imported", ""); err != nil {
+	if err := manager.AddProviderForApp("codex", name, "", apiKey, baseURL, "imported", "", ""); err != nil {
 		return fmt.Errorf("添加 Codex 配置失败: %w", err)
 	}
 
@@ -369,6 +370,7 @@ func scanAndImport(manager *config.Manager, appName string) error {
 					settings.Env.AnthropicAuthToken,
 					baseURL,
 					"backup",
+					"", // claudeModel
 					"") // defaultSonnetModel
 
 				if err != nil {

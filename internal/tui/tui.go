@@ -19,8 +19,16 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+// 预定义的 model 选项
+var predefinedClaudeModels = []string{
+	"", // 不填（默认推荐）
+	"opus",
+	"opusplan",
+}
+
 // 预定义的 Default Sonnet Model 选项
 var predefinedModels = []string{
+	"清空",
 	"claude-sonnet-4-5-20250929",
 	"claude-sonnet-4-20250514",
 }
@@ -46,7 +54,7 @@ type Model struct {
 	configCorrupted     bool                // 配置文件是否损坏
 	backupList          []backup.BackupInfo // 备份列表
 	backupCursor        int                 // 备份列表光标
-	modelSelectorActive bool                // 模型选择器是否激活
+	modelSelectorActive bool                // 模型选择器是否激活（Claude model 或 Default Sonnet Model）
 	modelSelectorCursor int                 // 模型选择器光标位置
 
 	// 模板管理相关字段
@@ -72,11 +80,12 @@ type Model struct {
 
 	// 撤销历史栈（用于清空后的回退操作）
 	undoHistory []struct {
-		name         string
-		token        string
-		baseURL      string
-		websiteURL   string
-		defaultModel string
+		name          string
+		token         string
+		baseURL       string
+		websiteURL    string
+		claudeModel   string
+		defaultSonnet string
 	}
 
 	// 复制配置相关
@@ -500,8 +509,8 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // Form handlers - 返回 (handled, model, cmd)
 func (m Model) handleFormKeys(msg tea.KeyMsg) (bool, tea.Model, tea.Cmd) {
-	// 当焦点在 Default Sonnet Model 字段（索引4）时，处理模型选择器
-	if m.focusIndex == 4 {
+	// 当焦点在 model 字段（索引 4）或 Default Sonnet Model 字段（索引 5）时，处理模型选择器
+	if m.focusIndex == 4 || m.focusIndex == 5 {
 		switch msg.String() {
 		case "right":
 			// 激活模型选择器
@@ -527,7 +536,14 @@ func (m Model) handleFormKeys(msg tea.KeyMsg) (bool, tea.Model, tea.Cmd) {
 		case "down":
 			// 如果模型选择器激活，下移光标
 			if m.modelSelectorActive {
-				if m.modelSelectorCursor < len(predefinedModels)-1 {
+				// 动态获取选项数量
+				var maxCursor int
+				if m.focusIndex == 4 {
+					maxCursor = len(predefinedClaudeModels) - 1 // model 字段
+				} else {
+					maxCursor = len(predefinedModels) - 1 // Default Sonnet Model
+				}
+				if m.modelSelectorCursor < maxCursor {
 					m.modelSelectorCursor++
 				}
 				return true, m, nil
@@ -535,8 +551,19 @@ func (m Model) handleFormKeys(msg tea.KeyMsg) (bool, tea.Model, tea.Cmd) {
 		case "enter":
 			// 如果模型选择器激活，选择模型并填入
 			if m.modelSelectorActive {
-				selectedModel := predefinedModels[m.modelSelectorCursor]
-				m.inputs[4].SetValue(selectedModel)
+				var selectedModel string
+				if m.focusIndex == 4 {
+					selectedModel = predefinedClaudeModels[m.modelSelectorCursor]
+				} else {
+					// Default Sonnet Model 字段
+					if m.modelSelectorCursor == 0 {
+						// 选择"清空"选项，清空输入框
+						selectedModel = ""
+					} else {
+						selectedModel = predefinedModels[m.modelSelectorCursor]
+					}
+				}
+				m.inputs[m.focusIndex].SetValue(selectedModel)
 				m.modelSelectorActive = false
 				return true, m, nil
 			}
@@ -587,8 +614,8 @@ func (m Model) handleFormKeys(msg tea.KeyMsg) (bool, tea.Model, tea.Cmd) {
 		}
 		return true, m, tea.Batch(cmds...)
 	case "up", "down":
-		// 如果不是在 Default Sonnet Model 字段，或者选择器未激活，正常切换字段
-		if m.focusIndex != 4 || !m.modelSelectorActive {
+		// 如果不是在模型字段，或者选择器未激活，正常切换字段
+		if (m.focusIndex != 4 && m.focusIndex != 5) || !m.modelSelectorActive {
 			m.modelSelectorActive = false
 			if msg.String() == "up" {
 				m.focusIndex--
@@ -629,7 +656,8 @@ func (m *Model) submitForm() {
 	token := m.inputs[1].Value()
 	baseURL := m.inputs[2].Value()
 	websiteURL := m.inputs[3].Value()
-	defaultSonnetModel := m.inputs[4].Value()
+	claudeModel := m.inputs[4].Value()
+	defaultSonnetModel := m.inputs[5].Value()
 
 	if name == "" {
 		m.err = errors.New(i18n.T("error.name_required"))
@@ -647,10 +675,10 @@ func (m *Model) submitForm() {
 	var err error
 	if m.mode == "edit" {
 		// Update provider
-		err = m.manager.UpdateProviderForApp(m.currentApp, m.editName, name, websiteURL, token, baseURL, "custom", defaultSonnetModel)
+		err = m.manager.UpdateProviderForApp(m.currentApp, m.editName, name, websiteURL, token, baseURL, "custom", claudeModel, defaultSonnetModel)
 	} else {
 		// Add provider
-		err = m.manager.AddProviderForApp(m.currentApp, name, websiteURL, token, baseURL, "custom", defaultSonnetModel)
+		err = m.manager.AddProviderForApp(m.currentApp, name, websiteURL, token, baseURL, "custom", claudeModel, defaultSonnetModel)
 	}
 
 	if err != nil {
@@ -893,7 +921,7 @@ func (m Model) viewForm() string {
 	}
 
 	// Form (必填字段在前，可选字段在后)
-	labels := []string{"配置名称", "API Token", "Base URL", "网站 (可选)", "Default Sonnet Model (可选)"}
+	labels := []string{"配置名称", "API Token", "Base URL", "网站 (可选)", "默认模型（可选）", "Default Sonnet Model (可选)"}
 	for i, label := range labels {
 		formContent.WriteString(lipgloss.NewStyle().Bold(true).Render(label+":") + "\n")
 		if i == m.focusIndex {
@@ -957,23 +985,34 @@ func (m Model) viewForm() string {
 	// Help
 	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#8E8E93"))
 	helpText := "Tab: 下一项 • Shift+Tab: 上一项"
-	if m.focusIndex == 4 {
+	if m.focusIndex == 4 || m.focusIndex == 5 {
 		helpText = "→: 显示模型选项 • ←: 隐藏模型选项 • Tab: 下一项"
 	}
 	formContent.WriteString(helpStyle.Render(helpText))
 
-	// 如果焦点在 Default Sonnet Model 字段，且选择器激活，显示侧边栏
-	if m.focusIndex == 4 && m.modelSelectorActive {
+	// 如果焦点在 model 或 Default Sonnet Model 字段，且选择器激活，显示侧边栏
+	if (m.focusIndex == 4 || m.focusIndex == 5) && m.modelSelectorActive {
 		// 构建模型选择器面板
 		var selectorContent strings.Builder
-		selectorTitle := lipgloss.NewStyle().
+		var selectorTitle string
+		var optionsList []string
+
+		if m.focusIndex == 4 {
+			selectorTitle = "选择模型"
+			optionsList = []string{"Default (recommended)", "Opus", "Opus Plan Mode"}
+		} else {
+			selectorTitle = "预定义模型"
+			optionsList = []string{"清空", "claude-sonnet-4-5-20250929", "claude-sonnet-4-20250514"}
+		}
+
+		selectorTitleStyle := lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.Color("#007AFF")).
 			Padding(0, 1).
-			Render("预定义模型")
-		selectorContent.WriteString(selectorTitle + "\n\n")
+			Render(selectorTitle)
+		selectorContent.WriteString(selectorTitleStyle + "\n\n")
 
-		for i, model := range predefinedModels {
+		for i, model := range optionsList {
 			if i == m.modelSelectorCursor {
 				// 高亮选中的模型
 				selectedStyle := lipgloss.NewStyle().
@@ -1171,17 +1210,19 @@ func (m *Model) clearFormFields() {
 	// 只有在有值的情况下才保存到历史栈
 	if m.anyFieldHasValue() {
 		m.undoHistory = append(m.undoHistory, struct {
-			name         string
-			token        string
-			baseURL      string
-			websiteURL   string
-			defaultModel string
+			name          string
+			token         string
+			baseURL       string
+			websiteURL    string
+			claudeModel   string
+			defaultSonnet string
 		}{
-			name:         m.inputs[0].Value(),
-			token:        m.inputs[1].Value(),
-			baseURL:      m.inputs[2].Value(),
-			websiteURL:   m.inputs[3].Value(),
-			defaultModel: m.inputs[4].Value(),
+			name:          m.inputs[0].Value(),
+			token:         m.inputs[1].Value(),
+			baseURL:       m.inputs[2].Value(),
+			websiteURL:    m.inputs[3].Value(),
+			claudeModel:   m.inputs[4].Value(),
+			defaultSonnet: m.inputs[5].Value(),
 		})
 	}
 
@@ -1190,7 +1231,8 @@ func (m *Model) clearFormFields() {
 	m.inputs[1].SetValue("") // Token
 	m.inputs[2].SetValue("") // Base URL
 	m.inputs[3].SetValue("") // Website URL
-	m.inputs[4].SetValue("") // Default Model
+	m.inputs[4].SetValue("") // Model
+	m.inputs[5].SetValue("") // Default Sonnet Model
 }
 
 // anyFieldHasValue 检查表单是否有任何非空字段
@@ -1200,7 +1242,8 @@ func (m *Model) anyFieldHasValue() bool {
 		m.inputs[1].Value() != "" || // Token
 		m.inputs[2].Value() != "" || // Base URL
 		m.inputs[3].Value() != "" || // Website URL
-		m.inputs[4].Value() != "" // Default Model
+		m.inputs[4].Value() != "" || // Model
+		m.inputs[5].Value() != "" // Default Sonnet Model
 }
 
 // undoLastClear 回退上一次清空操作
@@ -1218,7 +1261,8 @@ func (m *Model) undoLastClear() bool {
 	m.inputs[1].SetValue(lastState.token)
 	m.inputs[2].SetValue(lastState.baseURL)
 	m.inputs[3].SetValue(lastState.websiteURL)
-	m.inputs[4].SetValue(lastState.defaultModel)
+	m.inputs[4].SetValue(lastState.claudeModel)
+	m.inputs[5].SetValue(lastState.defaultSonnet)
 
 	return true
 }
@@ -1265,7 +1309,7 @@ func fileExists(path string) bool {
 }
 
 func (m *Model) initForm(provider *config.Provider) {
-	m.inputs = make([]textinput.Model, 5)
+	m.inputs = make([]textinput.Model, 6)
 	m.focusIndex = 0
 
 	// Name (必填)
@@ -1294,11 +1338,17 @@ func (m *Model) initForm(provider *config.Provider) {
 	m.inputs[3].CharLimit = 200
 	m.inputs[3].Width = 50
 
-	// Default Sonnet Model (可选)
+	// Model (可选)
 	m.inputs[4] = textinput.New()
-	m.inputs[4].Placeholder = "例如: claude-3-5-sonnet-20241022 (可选)"
+	m.inputs[4].Placeholder = "Default (recommended)"
 	m.inputs[4].CharLimit = 100
 	m.inputs[4].Width = 50
+
+	// Default Sonnet Model (可选)
+	m.inputs[5] = textinput.New()
+	m.inputs[5].Placeholder = "例如: claude-3-5-sonnet-20241022 (可选)"
+	m.inputs[5].CharLimit = 100
+	m.inputs[5].Width = 50
 
 	// Fill existing data
 	if provider != nil {
@@ -1307,12 +1357,14 @@ func (m *Model) initForm(provider *config.Provider) {
 
 		token := config.ExtractTokenFromProvider(provider)
 		baseURL := config.ExtractBaseURLFromProvider(provider)
+		claudeModel := config.ExtractModelFromProvider(provider)
 		defaultSonnetModel := config.ExtractDefaultSonnetModelFromProvider(provider)
 
 		m.inputs[1].SetValue(token)
 		m.inputs[2].SetValue(baseURL)
 		m.inputs[3].SetValue(provider.WebsiteURL)
-		m.inputs[4].SetValue(defaultSonnetModel)
+		m.inputs[4].SetValue(claudeModel)
+		m.inputs[5].SetValue(defaultSonnetModel)
 	} else if m.copyFromProvider != nil {
 		// 复制模式：从 copyFromProvider 预填充（除了名称）
 		// 名称留空，让用户输入新名称（避免重复）
@@ -1320,12 +1372,14 @@ func (m *Model) initForm(provider *config.Provider) {
 
 		token := config.ExtractTokenFromProvider(m.copyFromProvider)
 		baseURL := config.ExtractBaseURLFromProvider(m.copyFromProvider)
+		claudeModel := config.ExtractModelFromProvider(m.copyFromProvider)
 		defaultSonnetModel := config.ExtractDefaultSonnetModelFromProvider(m.copyFromProvider)
 
 		m.inputs[1].SetValue(token)
 		m.inputs[2].SetValue(baseURL)
 		m.inputs[3].SetValue(m.copyFromProvider.WebsiteURL)
-		m.inputs[4].SetValue(defaultSonnetModel)
+		m.inputs[4].SetValue(claudeModel)
+		m.inputs[5].SetValue(defaultSonnetModel)
 
 		// 复制完成后清空 copyFromProvider，避免影响后续操作
 		m.copyFromProvider = nil
