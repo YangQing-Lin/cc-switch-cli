@@ -108,6 +108,8 @@ func (m *Manager) backfillClaudeConfig() error {
 
 		if liveSettings.Model != "" {
 			currentProvider.SettingsConfig["model"] = liveSettings.Model
+		} else {
+			delete(currentProvider.SettingsConfig, "model")
 		}
 
 		app.Providers[app.Current] = currentProvider
@@ -240,6 +242,8 @@ func (m *Manager) writeClaudeConfig(provider *Provider) error {
 
 	if model, ok := provider.SettingsConfig["model"].(string); ok {
 		settings.Model = model
+	} else {
+		settings.Model = ""
 	}
 
 	if err := utils.WriteJSONFile(settingsPath, settings, 0644); err != nil {
