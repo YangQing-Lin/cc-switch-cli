@@ -395,6 +395,7 @@ func (m *Model) initForm(provider *config.Provider) {
 				if defaultModel != "" {
 					m.inputs[4].SetValue(defaultModel)
 				}
+				m.message = "💡 已从 ~/.claude/settings.json 预填充配置"
 			}
 		}
 	}

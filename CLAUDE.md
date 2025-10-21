@@ -70,10 +70,10 @@ go vet ./...
 
 ### 核心概念
 
-1. **SSOT (Single Source of Truth) 三步流程**
-   - **Backfill（回填）**: 在切换前将 live 配置回填到当前 Provider
-   - **Switch（切换）**: 将目标 Provider 写入 live 配置文件
-   - **Persist（持久化）**: 更新 config.json 中的 current 字段
+1. **单向配置覆盖**
+   - CCS 配置始终覆盖 live 配置文件
+   - 切换时直接写入目标 Provider 配置到 live 文件
+   - 不回填 live 配置的修改到 CCS
 
 2. **双层配置结构**
    - **内存配置** (`~/.cc-switch/config.json`): 存储所有供应商配置
@@ -113,7 +113,7 @@ cc-switch-cli/
 ├── internal/                  # 内部包
 │   ├── config/               # 配置管理
 │   │   ├── types.go          # 数据结构定义
-│   │   └── config.go         # 核心逻辑（SSOT）
+│   │   └── config.go         # 核心逻辑
 │   ├── i18n/                 # 国际化
 │   │   └── i18n.go           # 语言切换
 │   ├── tui/                  # 交互式界面
@@ -162,21 +162,16 @@ type Provider struct {
 }
 ```
 
-### SSOT 实现细节
+### 配置切换流程
 
-切换配置时的三步流程（`SwitchProviderForApp`）：
+切换配置时的两步流程（`SwitchProviderForApp`）：
 
-1. **回填当前配置** (`backfillCurrentConfig`)
-   - 读取 live 配置文件（`~/.claude/settings.json` 或 `~/.codex/auth.json`）
-   - 更新内存中当前 Provider 的 SettingsConfig
-   - 确保用户在 live 配置中的修改不会丢失
-
-2. **写入目标配置** (`writeProviderConfig`)
+1. **写入目标配置** (`writeProviderConfig`)
    - 从目标 Provider 的 SettingsConfig 提取配置
    - 写入 live 配置文件
    - 使用原子写入和回滚机制确保事务性
 
-3. **持久化切换** (`Save`)
+2. **持久化切换** (`Save`)
    - 更新 `app.Current` 为目标 Provider ID
    - 保存到 `~/.cc-switch/config.json`
    - 创建 `.bak.cli` 备份
@@ -231,6 +226,7 @@ wire_api = "responses"
 3. **原子写入**: 使用临时文件 + 重命名确保原子性
 4. **损坏恢复**: 配置文件损坏时自动备份并创建默认配置
 5. **便携模式**: 检测 `portable.json` 标记文件，使用程序所在目录存储配置
+6. **预填充功能**: 仅在无任何配置时，TUI 添加配置界面会从 `~/.claude/settings.json` 预填充 Token/BaseURL/Model 并显示提示
 
 ## 开发规范
 
