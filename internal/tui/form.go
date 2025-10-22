@@ -14,14 +14,53 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+type selectorOption struct {
+	Label string
+	Value string
+}
+
+var (
+	claudeModelSelectorOptions = []selectorOption{
+		{Label: "Default (recommended)", Value: ""},
+		{Label: "Opus", Value: "opus"},
+		{Label: "Opus Plan Mode", Value: "opusplan"},
+	}
+
+	claudeDefaultSonnetSelectorOptions = []selectorOption{
+		{Label: "清空", Value: ""},
+		{Label: "claude-sonnet-4-5-20250929", Value: "claude-sonnet-4-5-20250929"},
+		{Label: "claude-sonnet-4-20250514", Value: "claude-sonnet-4-20250514"},
+	}
+
+	codexModelSelectorOptions = []selectorOption{
+		{Label: "gpt-5-codex", Value: "gpt-5-codex"},
+	}
+
+	codexReasoningSelectorOptions = []selectorOption{
+		{Label: "minimal", Value: "minimal"},
+		{Label: "low", Value: "low"},
+		{Label: "medium", Value: "medium"},
+		{Label: "high", Value: "high"},
+	}
+)
+
 // handleFormKeys handles keys in add/edit mode
 func (m Model) handleFormKeys(msg tea.KeyMsg) (bool, tea.Model, tea.Cmd) {
-	if m.currentApp == "claude" && (m.focusIndex == 4 || m.focusIndex == 5) {
+	if m.isSelectorField(m.focusIndex) {
 		switch msg.String() {
 		case "right":
 			if !m.modelSelectorActive {
+				options := m.selectorOptions(m.focusIndex)
+				if len(options) == 0 {
+					return false, m, nil
+				}
 				m.modelSelectorActive = true
-				m.modelSelectorCursor = 0
+				currentValue := m.inputs[m.focusIndex].Value()
+				idx := findSelectorOptionIndex(options, currentValue)
+				if idx < 0 {
+					idx = 0
+				}
+				m.modelSelectorCursor = idx
 				return true, m, nil
 			}
 		case "left":
@@ -31,6 +70,10 @@ func (m Model) handleFormKeys(msg tea.KeyMsg) (bool, tea.Model, tea.Cmd) {
 			}
 		case "up":
 			if m.modelSelectorActive {
+				options := m.selectorOptions(m.focusIndex)
+				if len(options) == 0 {
+					return true, m, nil
+				}
 				if m.modelSelectorCursor > 0 {
 					m.modelSelectorCursor--
 				}
@@ -38,30 +81,22 @@ func (m Model) handleFormKeys(msg tea.KeyMsg) (bool, tea.Model, tea.Cmd) {
 			}
 		case "down":
 			if m.modelSelectorActive {
-				var maxCursor int
-				if m.focusIndex == 4 {
-					maxCursor = len(predefinedClaudeModels) - 1
-				} else {
-					maxCursor = len(predefinedModels) - 1
+				options := m.selectorOptions(m.focusIndex)
+				if len(options) == 0 {
+					return true, m, nil
 				}
-				if m.modelSelectorCursor < maxCursor {
+				if m.modelSelectorCursor < len(options)-1 {
 					m.modelSelectorCursor++
 				}
 				return true, m, nil
 			}
 		case "enter":
 			if m.modelSelectorActive {
-				var selectedModel string
-				if m.focusIndex == 4 {
-					selectedModel = predefinedClaudeModels[m.modelSelectorCursor]
-				} else {
-					if m.modelSelectorCursor == 0 {
-						selectedModel = ""
-					} else {
-						selectedModel = predefinedModels[m.modelSelectorCursor]
-					}
+				options := m.selectorOptions(m.focusIndex)
+				if len(options) > 0 {
+					selected := options[m.modelSelectorCursor]
+					m.inputs[m.focusIndex].SetValue(selected.Value)
 				}
-				m.inputs[m.focusIndex].SetValue(selectedModel)
 				m.modelSelectorActive = false
 				return true, m, nil
 			}
@@ -107,7 +142,7 @@ func (m Model) handleFormKeys(msg tea.KeyMsg) (bool, tea.Model, tea.Cmd) {
 		}
 		return true, m, tea.Batch(cmds...)
 	case "up", "down":
-		if (m.focusIndex != 4 && m.focusIndex != 5) || !m.modelSelectorActive || m.currentApp != "claude" {
+		if !m.isSelectorField(m.focusIndex) || !m.modelSelectorActive {
 			m.modelSelectorActive = false
 			if msg.String() == "up" {
 				m.focusIndex--
@@ -141,6 +176,70 @@ func (m Model) handleFormKeys(msg tea.KeyMsg) (bool, tea.Model, tea.Cmd) {
 	return false, m, nil
 }
 
+func (m Model) isSelectorField(index int) bool {
+	return len(m.selectorOptions(index)) > 0
+}
+
+func (m Model) selectorOptions(index int) []selectorOption {
+	switch m.currentApp {
+	case "claude":
+		switch index {
+		case 4:
+			return claudeModelSelectorOptions
+		case 5:
+			return claudeDefaultSonnetSelectorOptions
+		}
+	case "codex":
+		switch index {
+		case 4:
+			return codexModelSelectorOptions
+		case 5:
+			return codexReasoningSelectorOptions
+		}
+	}
+	return nil
+}
+
+func (m Model) selectorTitle(index int) string {
+	switch m.currentApp {
+	case "claude":
+		if index == 4 {
+			return "选择模型"
+		}
+		if index == 5 {
+			return "预定义模型"
+		}
+	case "codex":
+		if index == 4 {
+			return "选择模型"
+		}
+		if index == 5 {
+			return "选择推理强度"
+		}
+	}
+	return ""
+}
+
+func findSelectorOptionIndex(options []selectorOption, value string) int {
+	for i, option := range options {
+		if option.Value == value {
+			return i
+		}
+	}
+	return -1
+}
+
+func (m Model) isReadOnlyField(index int) bool {
+	switch m.currentApp {
+	case "claude":
+		return index == 4
+	case "codex":
+		return index == 4 || index == 5
+	default:
+		return false
+	}
+}
+
 func (m *Model) submitForm() {
 	name := m.inputs[0].Value()
 	token := m.inputs[1].Value()
@@ -166,6 +265,17 @@ func (m *Model) submitForm() {
 	if baseURL == "" {
 		m.err = errors.New(i18n.T("error.base_url_required"))
 		return
+	}
+
+	if m.currentApp == "codex" {
+		if claudeModel == "" {
+			m.err = errors.New(i18n.T("error.model_required"))
+			return
+		}
+		if defaultSonnetModel == "" {
+			m.err = errors.New(i18n.T("error.reasoning_required"))
+			return
+		}
 	}
 
 	var err error
@@ -266,23 +376,15 @@ func (m Model) viewForm() string {
 
 	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#8E8E93"))
 	helpText := "Tab: 下一项 • Shift+Tab: 上一项"
-	if m.currentApp == "claude" && (m.focusIndex == 4 || m.focusIndex == 5) {
+	if m.isSelectorField(m.focusIndex) {
 		helpText = "→: 显示模型选项 • ←: 隐藏模型选项 • Tab: 下一项"
 	}
 	s.WriteString(helpStyle.Render(helpText))
 
-	if m.currentApp == "claude" && (m.focusIndex == 4 || m.focusIndex == 5) && m.modelSelectorActive {
+	if m.isSelectorField(m.focusIndex) && m.modelSelectorActive {
 		var selectorContent strings.Builder
-		var selectorTitle string
-		var optionsList []string
-
-		if m.focusIndex == 4 {
-			selectorTitle = "选择模型"
-			optionsList = []string{"Default (recommended)", "Opus", "Opus Plan Mode"}
-		} else {
-			selectorTitle = "预定义模型"
-			optionsList = []string{"清空", "claude-sonnet-4-5-20250929", "claude-sonnet-4-20250514"}
-		}
+		selectorTitle := m.selectorTitle(m.focusIndex)
+		optionsList := m.selectorOptions(m.focusIndex)
 
 		selectorTitleStyle := lipgloss.NewStyle().
 			Bold(true).
@@ -291,17 +393,17 @@ func (m Model) viewForm() string {
 			Render(selectorTitle)
 		selectorContent.WriteString(selectorTitleStyle + "\n\n")
 
-		for i, model := range optionsList {
+		for i, option := range optionsList {
 			if i == m.modelSelectorCursor {
 				selectedStyle := lipgloss.NewStyle().
 					Background(lipgloss.Color("#007AFF")).
 					Foreground(lipgloss.Color("#FFFFFF")).
 					Bold(true).
 					Padding(0, 1)
-				selectorContent.WriteString(selectedStyle.Render("● "+model) + "\n")
+				selectorContent.WriteString(selectedStyle.Render("● "+option.Label) + "\n")
 			} else {
 				normalStyle := lipgloss.NewStyle().Padding(0, 1)
-				selectorContent.WriteString(normalStyle.Render("○ "+model) + "\n")
+				selectorContent.WriteString(normalStyle.Render("○ "+option.Label) + "\n")
 			}
 		}
 
@@ -329,19 +431,24 @@ func (m Model) viewForm() string {
 }
 
 func (m Model) formLabels() []string {
+	base := []string{"配置名称", "API Token", "Base URL", "网站 (可选)"}
 	if m.currentApp == "codex" {
-		return []string{"配置名称", "API Token", "Base URL", "网站 (可选)", "默认模型（可选）"}
+		return append(base, "默认模型（必填）", "推理强度（必填）")
 	}
-	return []string{"配置名称", "API Token", "Base URL", "网站 (可选)", "默认模型（可选）", "Default Sonnet Model (可选)"}
+	return append(base, "默认模型（可选）", "Default Sonnet Model (可选)")
 }
 
 func (m Model) isDefaultSonnetFieldVisible() bool {
 	return m.currentApp == "claude"
 }
 
+func (m Model) isCodexReasoningFieldVisible() bool {
+	return m.currentApp == "codex"
+}
+
 func (m *Model) initForm(provider *config.Provider) {
 	fieldCount := 5
-	if m.isDefaultSonnetFieldVisible() {
+	if m.isDefaultSonnetFieldVisible() || m.isCodexReasoningFieldVisible() {
 		fieldCount = 6
 	}
 
@@ -372,7 +479,7 @@ func (m *Model) initForm(provider *config.Provider) {
 
 	m.inputs[2] = textinput.New()
 	if m.currentApp == "codex" {
-		m.inputs[2].Placeholder = "https://api.openai.com/v1"
+		m.inputs[2].Placeholder = "https://pro.privnode.com/v1"
 	} else {
 		m.inputs[2].Placeholder = "https://api.anthropic.com"
 	}
@@ -385,7 +492,11 @@ func (m *Model) initForm(provider *config.Provider) {
 	m.inputs[3].Width = 50
 
 	m.inputs[4] = textinput.New()
-	m.inputs[4].Placeholder = "Default (recommended)"
+	if m.currentApp == "codex" {
+		m.inputs[4].Placeholder = "gpt-5-codex"
+	} else {
+		m.inputs[4].Placeholder = "Default (recommended)"
+	}
 	m.inputs[4].CharLimit = 100
 	m.inputs[4].Width = 50
 
@@ -394,6 +505,18 @@ func (m *Model) initForm(provider *config.Provider) {
 		m.inputs[5].Placeholder = "例如: claude-3-5-sonnet-20241022 (可选)"
 		m.inputs[5].CharLimit = 100
 		m.inputs[5].Width = 50
+	} else if m.isCodexReasoningFieldVisible() {
+		m.inputs[5] = textinput.New()
+		m.inputs[5].Placeholder = "minimal/low/medium/high"
+		m.inputs[5].CharLimit = 100
+		m.inputs[5].Width = 50
+	}
+
+	if m.currentApp == "codex" {
+		m.inputs[4].SetValue("gpt-5-codex")
+		if len(m.inputs) > 5 {
+			m.inputs[5].SetValue("high")
+		}
 	}
 
 	if provider != nil {
@@ -401,30 +524,40 @@ func (m *Model) initForm(provider *config.Provider) {
 
 		token := config.ExtractTokenFromProvider(provider)
 		baseURL := config.ExtractBaseURLFromProvider(provider)
-		claudeModel := config.ExtractModelFromProvider(provider)
-		defaultSonnetModel := config.ExtractDefaultSonnetModelFromProvider(provider)
+		modelValue := config.ExtractModelFromProvider(provider)
+		var extraValue string
+		if m.isDefaultSonnetFieldVisible() {
+			extraValue = config.ExtractDefaultSonnetModelFromProvider(provider)
+		} else if m.isCodexReasoningFieldVisible() {
+			extraValue = config.ExtractCodexReasoningFromProvider(provider)
+		}
 
 		m.inputs[1].SetValue(token)
 		m.inputs[2].SetValue(baseURL)
 		m.inputs[3].SetValue(provider.WebsiteURL)
-		m.inputs[4].SetValue(claudeModel)
-		if m.isDefaultSonnetFieldVisible() && len(m.inputs) > 5 {
-			m.inputs[5].SetValue(defaultSonnetModel)
+		m.inputs[4].SetValue(modelValue)
+		if len(m.inputs) > 5 {
+			m.inputs[5].SetValue(extraValue)
 		}
 	} else if m.copyFromProvider != nil {
 		m.inputs[0].SetValue("")
 
 		token := config.ExtractTokenFromProvider(m.copyFromProvider)
 		baseURL := config.ExtractBaseURLFromProvider(m.copyFromProvider)
-		claudeModel := config.ExtractModelFromProvider(m.copyFromProvider)
-		defaultSonnetModel := config.ExtractDefaultSonnetModelFromProvider(m.copyFromProvider)
+		modelValue := config.ExtractModelFromProvider(m.copyFromProvider)
+		var extraValue string
+		if m.isDefaultSonnetFieldVisible() {
+			extraValue = config.ExtractDefaultSonnetModelFromProvider(m.copyFromProvider)
+		} else if m.isCodexReasoningFieldVisible() {
+			extraValue = config.ExtractCodexReasoningFromProvider(m.copyFromProvider)
+		}
 
 		m.inputs[1].SetValue(token)
 		m.inputs[2].SetValue(baseURL)
 		m.inputs[3].SetValue(m.copyFromProvider.WebsiteURL)
-		m.inputs[4].SetValue(claudeModel)
-		if m.isDefaultSonnetFieldVisible() && len(m.inputs) > 5 {
-			m.inputs[5].SetValue(defaultSonnetModel)
+		m.inputs[4].SetValue(modelValue)
+		if len(m.inputs) > 5 {
+			m.inputs[5].SetValue(extraValue)
 		}
 
 		m.copyFromProvider = nil
@@ -446,7 +579,7 @@ func (m *Model) initForm(provider *config.Provider) {
 func (m Model) updateInputs(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmds := make([]tea.Cmd, len(m.inputs))
 	for i := range m.inputs {
-		if m.currentApp == "claude" && i == m.focusIndex && i == 4 {
+		if i == m.focusIndex && m.isReadOnlyField(i) {
 			if keyMsg, ok := msg.(tea.KeyMsg); ok {
 				switch keyMsg.Type {
 				case tea.KeyRunes, tea.KeyBackspace, tea.KeyDelete, tea.KeySpace:
@@ -463,12 +596,12 @@ func (m Model) updateInputs(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *Model) clearFormFields() {
 	if m.anyFieldHasValue() {
 		state := struct {
-			name          string
-			token         string
-			baseURL       string
-			websiteURL    string
-			claudeModel   string
-			defaultSonnet string
+			name       string
+			token      string
+			baseURL    string
+			websiteURL string
+			modelValue string
+			extraValue string
 		}{
 			name:       m.inputs[0].Value(),
 			token:      m.inputs[1].Value(),
@@ -476,16 +609,25 @@ func (m *Model) clearFormFields() {
 			websiteURL: m.inputs[3].Value(),
 		}
 		if len(m.inputs) > 4 {
-			state.claudeModel = m.inputs[4].Value()
+			state.modelValue = m.inputs[4].Value()
 		}
 		if len(m.inputs) > 5 {
-			state.defaultSonnet = m.inputs[5].Value()
+			state.extraValue = m.inputs[5].Value()
 		}
 		m.undoHistory = append(m.undoHistory, state)
 	}
 
 	for i := range m.inputs {
 		m.inputs[i].SetValue("")
+	}
+
+	if m.currentApp == "codex" {
+		if len(m.inputs) > 4 {
+			m.inputs[4].SetValue("gpt-5-codex")
+		}
+		if len(m.inputs) > 5 {
+			m.inputs[5].SetValue("high")
+		}
 	}
 }
 
@@ -511,10 +653,10 @@ func (m *Model) undoLastClear() bool {
 	m.inputs[2].SetValue(lastState.baseURL)
 	m.inputs[3].SetValue(lastState.websiteURL)
 	if len(m.inputs) > 4 {
-		m.inputs[4].SetValue(lastState.claudeModel)
+		m.inputs[4].SetValue(lastState.modelValue)
 	}
 	if len(m.inputs) > 5 {
-		m.inputs[5].SetValue(lastState.defaultSonnet)
+		m.inputs[5].SetValue(lastState.extraValue)
 	}
 
 	return true

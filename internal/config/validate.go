@@ -8,6 +8,11 @@ import (
 	"strings"
 )
 
+var (
+	codexModelRegex     = regexp.MustCompile(`model\s*=\s*"([^"]+)"`)
+	codexReasoningRegex = regexp.MustCompile(`model_reasoning_effort\s*=\s*"([^"]+)"`)
+)
+
 func ValidateProvider(name, apiToken, baseURL string) error {
 	if name == "" {
 		return fmt.Errorf("配置名称不能为空")
@@ -109,8 +114,32 @@ func ExtractModelFromProvider(p *Provider) string {
 		return ""
 	}
 
-	if model, ok := p.SettingsConfig["model"].(string); ok {
+	if model, ok := p.SettingsConfig["model"].(string); ok && model != "" {
 		return model
+	}
+
+	if configStr, ok := p.SettingsConfig["config"].(string); ok {
+		if matches := codexModelRegex.FindStringSubmatch(configStr); len(matches) > 1 {
+			return matches[1]
+		}
+	}
+
+	return ""
+}
+
+func ExtractCodexReasoningFromProvider(p *Provider) string {
+	if p == nil {
+		return ""
+	}
+
+	if reasoning, ok := p.SettingsConfig["model_reasoning_effort"].(string); ok && reasoning != "" {
+		return reasoning
+	}
+
+	if configStr, ok := p.SettingsConfig["config"].(string); ok {
+		if matches := codexReasoningRegex.FindStringSubmatch(configStr); len(matches) > 1 {
+			return matches[1]
+		}
 	}
 
 	return ""

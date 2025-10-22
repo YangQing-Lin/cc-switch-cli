@@ -19,18 +19,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-var predefinedClaudeModels = []string{
-	"",
-	"opus",
-	"opusplan",
-}
-
-var predefinedModels = []string{
-	"清空",
-	"claude-sonnet-4-5-20250929",
-	"claude-sonnet-4-20250514",
-}
-
 // Model TUI 主模型
 type Model struct {
 	manager             *config.Manager
@@ -78,12 +66,12 @@ type Model struct {
 
 	// 撤销历史栈（用于清空后的回退操作）
 	undoHistory []struct {
-		name          string
-		token         string
-		baseURL       string
-		websiteURL    string
-		claudeModel   string
-		defaultSonnet string
+		name       string
+		token      string
+		baseURL    string
+		websiteURL string
+		modelValue string
+		extraValue string
 	}
 
 	// 复制配置相关

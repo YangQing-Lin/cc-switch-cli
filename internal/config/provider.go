@@ -52,11 +52,21 @@ func (m *Manager) AddProviderForApp(appName, name, websiteURL, apiToken, baseURL
 			settingsConfig["model"] = claudeModel
 		}
 	case "codex":
+		codexModel := claudeModel
+		if codexModel == "" {
+			codexModel = "gpt-5-codex"
+		}
+		reasoningEffort := defaultSonnetModel
+		if reasoningEffort == "" {
+			reasoningEffort = "high"
+		}
 		settingsConfig = map[string]interface{}{
 			"auth": map[string]interface{}{
 				"OPENAI_API_KEY": apiToken,
 			},
-			"config": generateCodexConfigTOML(name, baseURL, "gpt-5-codex"),
+			"config":                 generateCodexConfigTOML(name, baseURL, codexModel, reasoningEffort),
+			"model":                  codexModel,
+			"model_reasoning_effort": reasoningEffort,
 		}
 	default:
 		return fmt.Errorf("不支持的应用: %s", appName)
@@ -308,7 +318,25 @@ func (m *Manager) UpdateProviderForApp(appName, oldName, newName, websiteURL, ap
 		if authMap, ok := targetProvider.SettingsConfig["auth"].(map[string]interface{}); ok {
 			authMap["OPENAI_API_KEY"] = apiToken
 		}
-		targetProvider.SettingsConfig["config"] = generateCodexConfigTOML(newName, baseURL, "gpt-5-codex")
+		codexModel := claudeModel
+		if codexModel == "" {
+			if existingModel, ok := targetProvider.SettingsConfig["model"].(string); ok && existingModel != "" {
+				codexModel = existingModel
+			} else {
+				codexModel = "gpt-5-codex"
+			}
+		}
+		reasoningEffort := defaultSonnetModel
+		if reasoningEffort == "" {
+			if existingReasoning, ok := targetProvider.SettingsConfig["model_reasoning_effort"].(string); ok && existingReasoning != "" {
+				reasoningEffort = existingReasoning
+			} else {
+				reasoningEffort = "high"
+			}
+		}
+		targetProvider.SettingsConfig["model"] = codexModel
+		targetProvider.SettingsConfig["model_reasoning_effort"] = reasoningEffort
+		targetProvider.SettingsConfig["config"] = generateCodexConfigTOML(newName, baseURL, codexModel, reasoningEffort)
 	}
 
 	app.Providers[targetID] = targetProvider
