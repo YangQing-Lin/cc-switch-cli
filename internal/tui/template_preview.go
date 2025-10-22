@@ -60,7 +60,7 @@ func (m Model) viewTemplatePreview() string {
 
 	infoStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#8E8E93"))
 	s.WriteString(infoStyle.Render(fmt.Sprintf("  ID: %s\n", m.selectedTemplate.ID)))
-	s.WriteString(infoStyle.Render(fmt.Sprintf("  类型: %s\n", m.selectedTemplate.Category)))
+	s.WriteString(infoStyle.Render(fmt.Sprintf("  类型: %s\n", m.templateCategoryDisplay(m.selectedTemplate.Category))))
 
 	typeLabel := "用户自定义"
 	if m.selectedTemplate.IsBuiltin {

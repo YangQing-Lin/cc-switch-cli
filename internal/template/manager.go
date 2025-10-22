@@ -11,10 +11,12 @@ import (
 )
 
 //go:embed claude_templates/*
+//go:embed codex_templates/*
 var builtinTemplatesFS embed.FS
 
 const (
 	CategoryClaudeMd = "claude_md"
+	CategoryCodexMd  = "codex_md"
 	ConfigVersion    = 1
 )
 
@@ -48,44 +50,60 @@ func NewTemplateManager(configPath string) (*TemplateManager, error) {
 
 // loadBuiltinTemplates 从嵌入文件系统加载预定义模板
 func (tm *TemplateManager) loadBuiltinTemplates() error {
-	entries, err := builtinTemplatesFS.ReadDir("claude_templates")
-	if err != nil {
-		return err
+	type builtinSet struct {
+		dir      string
+		category string
 	}
 
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
+	builtinSets := []builtinSet{
+		{dir: "claude_templates", category: CategoryClaudeMd},
+		{dir: "codex_templates", category: CategoryCodexMd},
+	}
 
-		filename := entry.Name()
-		if !strings.HasSuffix(filename, ".md") {
-			continue
-		}
-
-		// 读取模板内容
-		content, err := builtinTemplatesFS.ReadFile(filepath.Join("claude_templates", filename))
+	for _, set := range builtinSets {
+		entries, err := builtinTemplatesFS.ReadDir(set.dir)
 		if err != nil {
-			return fmt.Errorf("failed to read %s: %w", filename, err)
+			// 如果目录不存在则跳过，允许部分模式缺失
+			if os.IsNotExist(err) {
+				continue
+			}
+			return err
 		}
 
-		// 生成模板 ID（去掉 .md 后缀）
-		id := strings.TrimSuffix(filename, ".md")
+		for _, entry := range entries {
+			if entry.IsDir() {
+				continue
+			}
 
-		// 生成友好的显示名称
-		name := tm.generateDisplayName(id)
+			filename := entry.Name()
+			if !strings.HasSuffix(filename, ".md") {
+				continue
+			}
 
-		template := Template{
-			ID:        id,
-			Name:      name,
-			Category:  CategoryClaudeMd,
-			Content:   string(content),
-			IsBuiltin: true,
-			CreatedAt: time.Now().UnixMilli(),
+			// 读取模板内容
+			content, err := builtinTemplatesFS.ReadFile(filepath.Join(set.dir, filename))
+			if err != nil {
+				return fmt.Errorf("failed to read %s: %w", filename, err)
+			}
+
+			// 生成模板 ID（去掉 .md 后缀）
+			id := strings.TrimSuffix(filename, ".md")
+
+			// 生成友好的显示名称
+			name := tm.generateDisplayName(id)
+
+			template := Template{
+				ID:        id,
+				Name:      name,
+				Category:  set.category,
+				Content:   string(content),
+				IsBuiltin: true,
+				CreatedAt: time.Now().UnixMilli(),
+			}
+
+			tm.Templates[id] = template
+			tm.addToCategory(set.category, id)
 		}
-
-		tm.Templates[id] = template
-		tm.addToCategory(CategoryClaudeMd, id)
 	}
 
 	return nil

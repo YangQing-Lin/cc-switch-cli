@@ -12,28 +12,47 @@ import (
 )
 
 func (m Model) handleTargetSelectKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "esc":
+	key := msg.String()
+	if key == "esc" {
 		m.templateMode = "list"
 		m.selectedTemplate = nil
 		m.message = ""
 		m.err = nil
+		return m, nil
+	}
+
+	if m.selectedTemplate == nil {
+		m.err = fmt.Errorf("未选择模板")
+		m.message = ""
+		return m, nil
+	}
+
+	targets, err := template.GetTargetsForCategory(m.selectedTemplate.Category)
+	if err != nil {
+		m.err = fmt.Errorf("获取目标路径失败: %w", err)
+		m.message = ""
+		return m, nil
+	}
+	if len(targets) == 0 {
+		m.err = fmt.Errorf("当前模板无可用目标路径")
+		m.message = ""
+		return m, nil
+	}
+
+	if m.targetSelectCursor >= len(targets) {
+		m.targetSelectCursor = len(targets) - 1
+	}
+
+	switch key {
 	case "up", "k":
 		if m.targetSelectCursor > 0 {
 			m.targetSelectCursor--
 		}
 	case "down", "j":
-		if m.targetSelectCursor < 2 {
+		if m.targetSelectCursor < len(targets)-1 {
 			m.targetSelectCursor++
 		}
 	case "enter":
-		targets, err := template.GetClaudeMdTargets()
-		if err != nil {
-			m.err = fmt.Errorf("获取目标路径失败: %w", err)
-			m.message = ""
-			return m, nil
-		}
-
 		selectedTarget := targets[m.targetSelectCursor]
 		m.selectedTargetPath = selectedTarget.Path
 
@@ -109,6 +128,11 @@ func (m Model) handleDiffPreviewKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m Model) viewTargetSelect() string {
 	var s strings.Builder
 
+	category := template.CategoryClaudeMd
+	if m.selectedTemplate != nil {
+		category = m.selectedTemplate.Category
+	}
+
 	title := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("#007AFF")).
@@ -116,13 +140,24 @@ func (m Model) viewTargetSelect() string {
 		Render(fmt.Sprintf("应用模板: %s (v%s)", m.selectedTemplate.Name, m.getVersion()))
 	s.WriteString(title + "\n\n")
 
-	s.WriteString("选择目标路径:\n\n")
+	targetLabel := "CLAUDE.md"
+	if category == template.CategoryCodexMd {
+		targetLabel = "CODEX.md"
+	}
+	s.WriteString(fmt.Sprintf("选择目标路径（%s）:\n\n", targetLabel))
 
-	targets, err := template.GetClaudeMdTargets()
+	targets, err := template.GetTargetsForCategory(category)
 	if err != nil {
 		s.WriteString(lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#FF3B30")).
 			Render("✗ 获取目标路径失败") + "\n")
+		return s.String()
+	}
+
+	if len(targets) == 0 {
+		s.WriteString(lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#FF3B30")).
+			Render("✗ 没有可用的目标路径") + "\n")
 		return s.String()
 	}
 

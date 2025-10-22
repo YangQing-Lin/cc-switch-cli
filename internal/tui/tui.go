@@ -153,8 +153,26 @@ func (m *Model) refreshTemplates() {
 	if m.templateManager == nil {
 		return
 	}
-	allTemplates := m.templateManager.ListTemplates(template.CategoryClaudeMd)
+	allTemplates := m.templateManager.ListTemplates(m.currentTemplateCategory())
 	m.templates = allTemplates
+}
+
+func (m Model) currentTemplateCategory() string {
+	if m.currentApp == "codex" {
+		return template.CategoryCodexMd
+	}
+	return template.CategoryClaudeMd
+}
+
+func (m Model) templateCategoryDisplay(category string) string {
+	switch category {
+	case template.CategoryCodexMd:
+		return "Codex 指南 (CODEX.md)"
+	case template.CategoryClaudeMd:
+		return "Claude 指南 (CLAUDE.md)"
+	default:
+		return category
+	}
 }
 
 // syncModTime updates the cached modification time after internal config changes

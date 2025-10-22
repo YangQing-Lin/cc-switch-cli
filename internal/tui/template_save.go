@@ -12,52 +12,61 @@ import (
 )
 
 func (m Model) handleSourceSelectKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "esc":
+	key := msg.String()
+	if key == "esc" {
 		m.templateMode = "list"
 		m.message = ""
 		m.err = nil
-	case "up", "k":
-		targets, _ := template.GetClaudeMdTargets()
-		for {
-			if m.sourceSelectCursor > 0 {
-				m.sourceSelectCursor--
-			} else {
-				break
+		return m, nil
+	}
+
+	targets, err := template.GetTargetsForCategory(m.currentTemplateCategory())
+	if err != nil {
+		m.err = fmt.Errorf("获取源路径失败: %w", err)
+		m.message = ""
+		return m, nil
+	}
+	if len(targets) == 0 {
+		m.err = fmt.Errorf("当前没有可用的源文件")
+		m.message = ""
+		return m, nil
+	}
+
+	if m.sourceSelectCursor >= len(targets) {
+		m.sourceSelectCursor = len(targets) - 1
+	}
+
+	ensureCursorOnExisting := func() {
+		if _, err := os.Stat(targets[m.sourceSelectCursor].Path); err == nil {
+			return
+		}
+		for i, target := range targets {
+			if _, err := os.Stat(target.Path); err == nil {
+				m.sourceSelectCursor = i
+				return
 			}
-			if m.sourceSelectCursor < len(targets) {
-				_, err := os.Stat(targets[m.sourceSelectCursor].Path)
-				if err == nil {
-					break
-				}
+		}
+	}
+	ensureCursorOnExisting()
+
+	switch key {
+	case "up", "k":
+		for i := m.sourceSelectCursor - 1; i >= 0; i-- {
+			if _, err := os.Stat(targets[i].Path); err == nil {
+				m.sourceSelectCursor = i
+				break
 			}
 		}
 	case "down", "j":
-		targets, _ := template.GetClaudeMdTargets()
-		for {
-			if m.sourceSelectCursor < 2 {
-				m.sourceSelectCursor++
-			} else {
+		for i := m.sourceSelectCursor + 1; i < len(targets); i++ {
+			if _, err := os.Stat(targets[i].Path); err == nil {
+				m.sourceSelectCursor = i
 				break
-			}
-			if m.sourceSelectCursor < len(targets) {
-				_, err := os.Stat(targets[m.sourceSelectCursor].Path)
-				if err == nil {
-					break
-				}
 			}
 		}
 	case "enter":
-		targets, err := template.GetClaudeMdTargets()
-		if err != nil {
-			m.err = fmt.Errorf("获取源路径失败: %w", err)
-			m.message = ""
-			return m, nil
-		}
-
 		selectedTarget := targets[m.sourceSelectCursor]
-		_, err = os.Stat(selectedTarget.Path)
-		if err != nil {
+		if _, err := os.Stat(selectedTarget.Path); err != nil {
 			m.err = fmt.Errorf("✗ 该文件不存在，无法保存")
 			m.message = ""
 			return m, nil
@@ -76,6 +85,7 @@ func (m Model) handleSourceSelectKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.err = nil
 		return m, textinput.Blink
 	}
+
 	return m, nil
 }
 
@@ -93,17 +103,19 @@ func (m Model) handleSaveNameKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			name = m.templateManager.GenerateDefaultTemplateName()
 		}
 
+		category := m.currentTemplateCategory()
+
 		templateID, err := m.templateManager.SaveAsTemplate(
 			m.selectedSourcePath,
 			name,
-			template.CategoryClaudeMd,
+			category,
 		)
 		if err != nil {
 			m.err = fmt.Errorf("保存失败: %w", err)
 			m.message = ""
 		} else {
 			m.message = fmt.Sprintf("✓ 模板已保存\n  ID: %s\n  名称: %s\n  类型: %s",
-				templateID, name, template.CategoryClaudeMd)
+				templateID, name, category)
 			m.err = nil
 			m.refreshTemplates()
 
@@ -129,20 +141,37 @@ func (m Model) handleSaveNameKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m Model) viewSourceSelect() string {
 	var s strings.Builder
 
+	category := m.currentTemplateCategory()
+	appLabel := "Claude"
+	if category == template.CategoryCodexMd {
+		appLabel = "Codex / OpenAI"
+	}
+
 	title := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("#007AFF")).
 		Padding(0, 1).
-		Render(fmt.Sprintf("保存为模板 (v%s)", m.getVersion()))
+		Render(fmt.Sprintf("保存为模板 · %s (v%s)", appLabel, m.getVersion()))
 	s.WriteString(title + "\n\n")
 
-	s.WriteString("选择源文件:\n\n")
+	sourceLabel := "CLAUDE.md"
+	if category == template.CategoryCodexMd {
+		sourceLabel = "CODEX.md"
+	}
+	s.WriteString(fmt.Sprintf("选择源文件（%s）:\n\n", sourceLabel))
 
-	targets, err := template.GetClaudeMdTargets()
+	targets, err := template.GetTargetsForCategory(category)
 	if err != nil {
 		s.WriteString(lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#FF3B30")).
 			Render("✗ 获取源路径失败") + "\n")
+		return s.String()
+	}
+
+	if len(targets) == 0 {
+		s.WriteString(lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#FF3B30")).
+			Render("✗ 没有可用于保存的源文件") + "\n")
 		return s.String()
 	}
 

@@ -71,11 +71,16 @@ func (m Model) handleTemplateListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m Model) viewTemplateList() string {
 	var s strings.Builder
 
+	appLabel := "Claude Code"
+	if m.currentTemplateCategory() == template.CategoryCodexMd {
+		appLabel = "Codex / OpenAI"
+	}
+
 	title := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("#007AFF")).
 		Padding(0, 1).
-		Render(fmt.Sprintf("模板管理 (v%s)", m.getVersion()))
+		Render(fmt.Sprintf("模板管理 · %s (v%s)", appLabel, m.getVersion()))
 	s.WriteString(title + "\n\n")
 
 	if m.err != nil {
