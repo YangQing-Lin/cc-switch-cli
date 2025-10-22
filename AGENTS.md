@@ -22,3 +22,7 @@ The history follows conventional commits (`feat:`, `fix:`, `docs:`). Keep messag
 Never commit personal Claude tokens; rely on local config files under `~/.config/ccs/` or the portable storage directory. The backup logic trusts filesystem permissions, so confirm restrictive modes on `ccs.backup/` before sharing logs. When writing docs or tests, mask tokens using the existing redaction helpers in `internal/utils/secret.go`.
 
 - Encoding: All code and documentation files must use **UTF-8 without BOM** encoding
+- After making code changes but before compiling, always run the following commands:
+  - `go fmt ./...` to format the entire project
+  - `go test ./...` to run all unit tests
+  - `go build` for compilation testing
