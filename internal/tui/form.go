@@ -112,6 +112,15 @@ func (m Model) handleFormKeys(msg tea.KeyMsg) (bool, tea.Model, tea.Cmd) {
 	case "ctrl+d":
 		m.clearFormFields()
 		return true, m, nil
+	case "ctrl+l":
+		m.apiTokenVisible = !m.apiTokenVisible
+		m.applyTokenVisibility()
+		if m.apiTokenVisible {
+			m.message = "🔓 API Token 已显示"
+		} else {
+			m.message = "🔒 API Token 已隐藏"
+		}
+		return true, m, nil
 	case "ctrl+z":
 		if m.undoLastClear() {
 			return true, m, nil
@@ -245,6 +254,17 @@ func (m Model) isReadOnlyField(index int) bool {
 	}
 }
 
+func (m *Model) applyTokenVisibility() {
+	if len(m.inputs) <= 1 {
+		return
+	}
+	if m.apiTokenVisible {
+		m.inputs[1].EchoMode = textinput.EchoNormal
+	} else {
+		m.inputs[1].EchoMode = textinput.EchoPassword
+	}
+}
+
 func (m *Model) submitForm() {
 	name := m.inputs[0].Value()
 	token := m.inputs[1].Value()
@@ -328,13 +348,17 @@ func (m Model) viewForm() string {
 	labels := m.formLabels()
 	for i, label := range labels {
 		s.WriteString(lipgloss.NewStyle().Bold(true).Render(label+":") + "\n")
+		inputView := m.inputs[i].View()
+		if i == 1 && m.apiTokenVisible {
+			inputView += " 👁"
+		}
 		if i == m.focusIndex {
 			s.WriteString(lipgloss.NewStyle().
 				Border(lipgloss.RoundedBorder()).
 				BorderForeground(lipgloss.Color("#007AFF")).
-				Render(m.inputs[i].View()) + "\n\n")
+				Render(inputView) + "\n\n")
 		} else {
-			s.WriteString(m.inputs[i].View() + "\n\n")
+			s.WriteString(inputView + "\n\n")
 		}
 	}
 
@@ -377,7 +401,17 @@ func (m Model) viewForm() string {
 	s.WriteString(submitStyle.Render("保存 (Enter)") + " ")
 	s.WriteString(cancelStyle.Render("取消 (ESC)") + " ")
 	s.WriteString(clearStyle.Render("清空内容 (Ctrl+D)") + " ")
-	s.WriteString(undoStyle.Render("回退 (Ctrl+Z)") + "\n\n")
+	s.WriteString(undoStyle.Render("回退 (Ctrl+Z)") + " ")
+	tokenState := "隐藏"
+	if m.apiTokenVisible {
+		tokenState = "显示"
+	}
+	tokenStatusStyle := lipgloss.NewStyle().
+		Background(lipgloss.Color("#5856D6")).
+		Foreground(lipgloss.Color("#FFFFFF")).
+		Padding(0, 2).
+		Bold(true)
+	s.WriteString(tokenStatusStyle.Render(fmt.Sprintf("Token: %s (Ctrl+L)", tokenState)) + "\n\n")
 
 	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#8E8E93"))
 	helpText := "Tab: 下一项 • Shift+Tab: 上一项"
@@ -461,6 +495,7 @@ func (m *Model) initForm(provider *config.Provider) {
 	m.focusIndex = 0
 	m.modelSelectorActive = false
 	m.modelSelectorCursor = 0
+	m.apiTokenVisible = false
 
 	m.inputs[0] = textinput.New()
 	if m.currentApp == "codex" {
@@ -481,6 +516,7 @@ func (m *Model) initForm(provider *config.Provider) {
 	m.inputs[1].EchoMode = textinput.EchoPassword
 	m.inputs[1].CharLimit = 500
 	m.inputs[1].Width = 50
+	m.applyTokenVisibility()
 
 	m.inputs[2] = textinput.New()
 	if m.currentApp == "codex" {
@@ -654,6 +690,8 @@ func (m *Model) clearFormFields() {
 			m.inputs[5].SetValue("high")
 		}
 	}
+
+	m.applyTokenVisibility()
 }
 
 func (m *Model) anyFieldHasValue() bool {

@@ -82,6 +82,9 @@ type Model struct {
 
 	// 便携模式相关
 	isPortableMode bool // 是否为便携模式
+
+	// API Token 显示状态
+	apiTokenVisible bool
 }
 
 // tickMsg is sent on every tick for config refresh
