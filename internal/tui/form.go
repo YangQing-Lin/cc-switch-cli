@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/YangQing-Lin/cc-switch-cli/internal/config"
@@ -42,6 +43,10 @@ var (
 		{Label: "medium", Value: "medium"},
 		{Label: "high", Value: "high"},
 	}
+
+	codexConfigBaseURLRegex   = regexp.MustCompile(`base_url\s*=\s*"([^"]+)"`)
+	codexConfigModelRegex     = regexp.MustCompile(`model\s*=\s*"([^"]+)"`)
+	codexConfigReasoningRegex = regexp.MustCompile(`model_reasoning_effort\s*=\s*"([^"]+)"`)
 )
 
 // handleFormKeys handles keys in add/edit mode
@@ -563,14 +568,34 @@ func (m *Model) initForm(provider *config.Provider) {
 		m.copyFromProvider = nil
 	} else {
 		if len(m.providers) == 0 {
-			token, baseURL, defaultModel, loaded := m.loadLiveConfigForForm()
-			if loaded {
-				m.inputs[1].SetValue(token)
-				m.inputs[2].SetValue(baseURL)
-				if defaultModel != "" && len(m.inputs) > 4 {
-					m.inputs[4].SetValue(defaultModel)
+			switch m.currentApp {
+			case "claude":
+				token, baseURL, defaultModel, loaded := m.loadLiveConfigForForm()
+				if loaded {
+					m.inputs[1].SetValue(token)
+					m.inputs[2].SetValue(baseURL)
+					if defaultModel != "" && len(m.inputs) > 4 {
+						m.inputs[4].SetValue(defaultModel)
+					}
+					m.message = "💡 已从 ~/.claude/settings.json 预填充配置"
 				}
-				m.message = "💡 已从 ~/.claude/settings.json 预填充配置"
+			case "codex":
+				token, baseURL, modelValue, reasoningValue, loaded := m.loadCodexConfigForForm()
+				if loaded {
+					if token != "" {
+						m.inputs[1].SetValue(token)
+					}
+					if baseURL != "" {
+						m.inputs[2].SetValue(baseURL)
+					}
+					if modelValue != "" && len(m.inputs) > 4 {
+						m.inputs[4].SetValue(modelValue)
+					}
+					if reasoningValue != "" && len(m.inputs) > 5 {
+						m.inputs[5].SetValue(reasoningValue)
+					}
+					m.message = "💡 已从 ~/.codex/config.toml 预填充配置"
+				}
 			}
 		}
 	}
@@ -691,6 +716,44 @@ func (m *Model) loadLiveConfigForForm() (token, baseURL, defaultModel string, lo
 	}
 
 	return "", "", "", false
+}
+
+func (m *Model) loadCodexConfigForForm() (token, baseURL, modelValue, reasoningValue string, loaded bool) {
+	if m.currentApp != "codex" {
+		return "", "", "", "", false
+	}
+
+	authPath, err := config.GetCodexAuthJsonPath()
+	if err == nil && fileExists(authPath) {
+		if data, err := os.ReadFile(authPath); err == nil {
+			var auth config.CodexAuthJson
+			if err := json.Unmarshal(data, &auth); err == nil {
+				token = auth.OpenAIAPIKey
+			}
+		}
+	}
+
+	configPath, err := config.GetCodexConfigPath()
+	if err == nil && fileExists(configPath) {
+		if data, err := os.ReadFile(configPath); err == nil {
+			configContent := string(data)
+			if matches := codexConfigBaseURLRegex.FindStringSubmatch(configContent); len(matches) > 1 {
+				baseURL = matches[1]
+			}
+			if matches := codexConfigModelRegex.FindStringSubmatch(configContent); len(matches) > 1 {
+				modelValue = matches[1]
+			}
+			if matches := codexConfigReasoningRegex.FindStringSubmatch(configContent); len(matches) > 1 {
+				reasoningValue = matches[1]
+			}
+		}
+	}
+
+	if token != "" || baseURL != "" || modelValue != "" || reasoningValue != "" {
+		return token, baseURL, modelValue, reasoningValue, true
+	}
+
+	return "", "", "", "", false
 }
 
 func fileExists(path string) bool {
