@@ -50,3 +50,4 @@ portable.ini
 ccs
 .gocache
 .tmp-home
+.test-home
