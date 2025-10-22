@@ -116,9 +116,9 @@ func (m Model) handleFormKeys(msg tea.KeyMsg) (bool, tea.Model, tea.Cmd) {
 		m.apiTokenVisible = !m.apiTokenVisible
 		m.applyTokenVisibility()
 		if m.apiTokenVisible {
-			m.message = "🔓 API Token 已显示"
+			m.message = "🔓 API Key 已显示"
 		} else {
-			m.message = "🔒 API Token 已隐藏"
+			m.message = "🔒 API Key 已隐藏"
 		}
 		return true, m, nil
 	case "ctrl+z":
@@ -402,16 +402,16 @@ func (m Model) viewForm() string {
 	s.WriteString(cancelStyle.Render("取消 (ESC)") + " ")
 	s.WriteString(clearStyle.Render("清空内容 (Ctrl+D)") + " ")
 	s.WriteString(undoStyle.Render("回退 (Ctrl+Z)") + " ")
-	tokenState := "隐藏"
+	keyState := "隐藏"
 	if m.apiTokenVisible {
-		tokenState = "显示"
+		keyState = "显示"
 	}
-	tokenStatusStyle := lipgloss.NewStyle().
+	keyStatusStyle := lipgloss.NewStyle().
 		Background(lipgloss.Color("#5856D6")).
 		Foreground(lipgloss.Color("#FFFFFF")).
 		Padding(0, 2).
 		Bold(true)
-	s.WriteString(tokenStatusStyle.Render(fmt.Sprintf("Token: %s (Ctrl+L)", tokenState)) + "\n\n")
+	s.WriteString(keyStatusStyle.Render(fmt.Sprintf("Key: %s (Ctrl+L)", keyState)) + "\n\n")
 
 	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#8E8E93"))
 	helpText := "Tab: 下一项 • Shift+Tab: 上一项"
@@ -470,7 +470,7 @@ func (m Model) viewForm() string {
 }
 
 func (m Model) formLabels() []string {
-	base := []string{"配置名称", "API Token", "Base URL", "网站 (可选)"}
+	base := []string{"配置名称", "API Key", "Base URL", "网站 (可选)"}
 	if m.currentApp == "codex" {
 		return append(base, "默认模型（必填）", "推理强度（必填）")
 	}

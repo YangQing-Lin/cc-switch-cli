@@ -24,6 +24,19 @@ const (
 	AutoBackupPrefix = "auto_"
 )
 
+var shanghaiLocation = func() *time.Location {
+	loc, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		// Fallback to fixed offset if timezone database is unavailable
+		return time.FixedZone("CST", 8*60*60)
+	}
+	return loc
+}()
+
+func nowInShanghai() time.Time {
+	return time.Now().In(shanghaiLocation)
+}
+
 // BackupInfo contains information about a backup file
 type BackupInfo struct {
 	Path      string
@@ -51,7 +64,7 @@ func createBackup(configPath string, isAuto bool) (string, error) {
 	}
 
 	// Generate timestamp and backup ID
-	timestamp := time.Now().UTC().Format("20060102_150405")
+	timestamp := nowInShanghai().Format("20060102_150405")
 	var backupID string
 	if isAuto {
 		backupID = fmt.Sprintf("%sbackup_%s", AutoBackupPrefix, timestamp)
@@ -348,6 +361,6 @@ func RestoreBackup(configPath, backupPath string) error {
 
 // GetDefaultExportFilename returns a default filename for config export
 func GetDefaultExportFilename() string {
-	date := time.Now().Format("2006-01-02")
+	date := nowInShanghai().Format("2006-01-02")
 	return fmt.Sprintf("cc-switch-config-%s.json", date)
 }

@@ -388,7 +388,7 @@ func TestGetDefaultExportFilename(t *testing.T) {
 		t.Errorf("Expected filename to end with '.json', got: %s", filename)
 	}
 
-	expectedDate := time.Now().Format("2006-01-02")
+	expectedDate := time.Now().In(shanghaiLocation).Format("2006-01-02")
 	if !strings.Contains(filename, expectedDate) {
 		t.Errorf("Expected filename to contain date %s, got: %s", expectedDate, filename)
 	}
