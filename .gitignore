@@ -48,3 +48,5 @@ Thumbs.db
 跨平台CLI应用设计要点.md
 portable.ini
 ccs
+.gocache
+.tmp-home
