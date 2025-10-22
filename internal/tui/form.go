@@ -16,7 +16,7 @@ import (
 
 // handleFormKeys handles keys in add/edit mode
 func (m Model) handleFormKeys(msg tea.KeyMsg) (bool, tea.Model, tea.Cmd) {
-	if m.focusIndex == 4 || m.focusIndex == 5 {
+	if m.currentApp == "claude" && (m.focusIndex == 4 || m.focusIndex == 5) {
 		switch msg.String() {
 		case "right":
 			if !m.modelSelectorActive {
@@ -107,7 +107,7 @@ func (m Model) handleFormKeys(msg tea.KeyMsg) (bool, tea.Model, tea.Cmd) {
 		}
 		return true, m, tea.Batch(cmds...)
 	case "up", "down":
-		if (m.focusIndex != 4 && m.focusIndex != 5) || !m.modelSelectorActive {
+		if (m.focusIndex != 4 && m.focusIndex != 5) || !m.modelSelectorActive || m.currentApp != "claude" {
 			m.modelSelectorActive = false
 			if msg.String() == "up" {
 				m.focusIndex--
@@ -146,8 +146,14 @@ func (m *Model) submitForm() {
 	token := m.inputs[1].Value()
 	baseURL := m.inputs[2].Value()
 	websiteURL := m.inputs[3].Value()
-	claudeModel := m.inputs[4].Value()
-	defaultSonnetModel := m.inputs[5].Value()
+	var claudeModel string
+	if len(m.inputs) > 4 {
+		claudeModel = m.inputs[4].Value()
+	}
+	var defaultSonnetModel string
+	if len(m.inputs) > 5 {
+		defaultSonnetModel = m.inputs[5].Value()
+	}
 
 	if name == "" {
 		m.err = errors.New(i18n.T("error.name_required"))
@@ -204,7 +210,7 @@ func (m Model) viewForm() string {
 		s.WriteString(errStyle.Render("✗ "+m.err.Error()) + "\n\n")
 	}
 
-	labels := []string{"配置名称", "API Token", "Base URL", "网站 (可选)", "默认模型（可选）", "Default Sonnet Model (可选)"}
+	labels := m.formLabels()
 	for i, label := range labels {
 		s.WriteString(lipgloss.NewStyle().Bold(true).Render(label+":") + "\n")
 		if i == m.focusIndex {
@@ -260,12 +266,12 @@ func (m Model) viewForm() string {
 
 	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#8E8E93"))
 	helpText := "Tab: 下一项 • Shift+Tab: 上一项"
-	if m.focusIndex == 4 || m.focusIndex == 5 {
+	if m.currentApp == "claude" && (m.focusIndex == 4 || m.focusIndex == 5) {
 		helpText = "→: 显示模型选项 • ←: 隐藏模型选项 • Tab: 下一项"
 	}
 	s.WriteString(helpStyle.Render(helpText))
 
-	if (m.focusIndex == 4 || m.focusIndex == 5) && m.modelSelectorActive {
+	if m.currentApp == "claude" && (m.focusIndex == 4 || m.focusIndex == 5) && m.modelSelectorActive {
 		var selectorContent strings.Builder
 		var selectorTitle string
 		var optionsList []string
@@ -322,24 +328,54 @@ func (m Model) viewForm() string {
 	return s.String()
 }
 
+func (m Model) formLabels() []string {
+	if m.currentApp == "codex" {
+		return []string{"配置名称", "API Token", "Base URL", "网站 (可选)", "默认模型（可选）"}
+	}
+	return []string{"配置名称", "API Token", "Base URL", "网站 (可选)", "默认模型（可选）", "Default Sonnet Model (可选)"}
+}
+
+func (m Model) isDefaultSonnetFieldVisible() bool {
+	return m.currentApp == "claude"
+}
+
 func (m *Model) initForm(provider *config.Provider) {
-	m.inputs = make([]textinput.Model, 6)
+	fieldCount := 5
+	if m.isDefaultSonnetFieldVisible() {
+		fieldCount = 6
+	}
+
+	m.inputs = make([]textinput.Model, fieldCount)
 	m.focusIndex = 0
+	m.modelSelectorActive = false
+	m.modelSelectorCursor = 0
 
 	m.inputs[0] = textinput.New()
-	m.inputs[0].Placeholder = "例如: Anthropic 官方"
+	if m.currentApp == "codex" {
+		m.inputs[0].Placeholder = "例如: OpenAI 官方"
+	} else {
+		m.inputs[0].Placeholder = "例如: Anthropic 官方"
+	}
 	m.inputs[0].Focus()
 	m.inputs[0].CharLimit = 50
 	m.inputs[0].Width = 50
 
 	m.inputs[1] = textinput.New()
-	m.inputs[1].Placeholder = "sk-ant-xxxxx"
+	if m.currentApp == "codex" {
+		m.inputs[1].Placeholder = "sk-xxxxx"
+	} else {
+		m.inputs[1].Placeholder = "sk-ant-xxxxx"
+	}
 	m.inputs[1].EchoMode = textinput.EchoPassword
 	m.inputs[1].CharLimit = 500
 	m.inputs[1].Width = 50
 
 	m.inputs[2] = textinput.New()
-	m.inputs[2].Placeholder = "https://api.anthropic.com"
+	if m.currentApp == "codex" {
+		m.inputs[2].Placeholder = "https://api.openai.com/v1"
+	} else {
+		m.inputs[2].Placeholder = "https://api.anthropic.com"
+	}
 	m.inputs[2].CharLimit = 200
 	m.inputs[2].Width = 50
 
@@ -353,10 +389,12 @@ func (m *Model) initForm(provider *config.Provider) {
 	m.inputs[4].CharLimit = 100
 	m.inputs[4].Width = 50
 
-	m.inputs[5] = textinput.New()
-	m.inputs[5].Placeholder = "例如: claude-3-5-sonnet-20241022 (可选)"
-	m.inputs[5].CharLimit = 100
-	m.inputs[5].Width = 50
+	if m.isDefaultSonnetFieldVisible() {
+		m.inputs[5] = textinput.New()
+		m.inputs[5].Placeholder = "例如: claude-3-5-sonnet-20241022 (可选)"
+		m.inputs[5].CharLimit = 100
+		m.inputs[5].Width = 50
+	}
 
 	if provider != nil {
 		m.inputs[0].SetValue(provider.Name)
@@ -370,7 +408,9 @@ func (m *Model) initForm(provider *config.Provider) {
 		m.inputs[2].SetValue(baseURL)
 		m.inputs[3].SetValue(provider.WebsiteURL)
 		m.inputs[4].SetValue(claudeModel)
-		m.inputs[5].SetValue(defaultSonnetModel)
+		if m.isDefaultSonnetFieldVisible() && len(m.inputs) > 5 {
+			m.inputs[5].SetValue(defaultSonnetModel)
+		}
 	} else if m.copyFromProvider != nil {
 		m.inputs[0].SetValue("")
 
@@ -383,7 +423,9 @@ func (m *Model) initForm(provider *config.Provider) {
 		m.inputs[2].SetValue(baseURL)
 		m.inputs[3].SetValue(m.copyFromProvider.WebsiteURL)
 		m.inputs[4].SetValue(claudeModel)
-		m.inputs[5].SetValue(defaultSonnetModel)
+		if m.isDefaultSonnetFieldVisible() && len(m.inputs) > 5 {
+			m.inputs[5].SetValue(defaultSonnetModel)
+		}
 
 		m.copyFromProvider = nil
 	} else {
@@ -392,7 +434,7 @@ func (m *Model) initForm(provider *config.Provider) {
 			if loaded {
 				m.inputs[1].SetValue(token)
 				m.inputs[2].SetValue(baseURL)
-				if defaultModel != "" {
+				if defaultModel != "" && len(m.inputs) > 4 {
 					m.inputs[4].SetValue(defaultModel)
 				}
 				m.message = "💡 已从 ~/.claude/settings.json 预填充配置"
@@ -404,7 +446,7 @@ func (m *Model) initForm(provider *config.Provider) {
 func (m Model) updateInputs(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmds := make([]tea.Cmd, len(m.inputs))
 	for i := range m.inputs {
-		if i == m.focusIndex && i == 4 {
+		if m.currentApp == "claude" && i == m.focusIndex && i == 4 {
 			if keyMsg, ok := msg.(tea.KeyMsg); ok {
 				switch keyMsg.Type {
 				case tea.KeyRunes, tea.KeyBackspace, tea.KeyDelete, tea.KeySpace:
@@ -420,7 +462,7 @@ func (m Model) updateInputs(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *Model) clearFormFields() {
 	if m.anyFieldHasValue() {
-		m.undoHistory = append(m.undoHistory, struct {
+		state := struct {
 			name          string
 			token         string
 			baseURL       string
@@ -428,30 +470,32 @@ func (m *Model) clearFormFields() {
 			claudeModel   string
 			defaultSonnet string
 		}{
-			name:          m.inputs[0].Value(),
-			token:         m.inputs[1].Value(),
-			baseURL:       m.inputs[2].Value(),
-			websiteURL:    m.inputs[3].Value(),
-			claudeModel:   m.inputs[4].Value(),
-			defaultSonnet: m.inputs[5].Value(),
-		})
+			name:       m.inputs[0].Value(),
+			token:      m.inputs[1].Value(),
+			baseURL:    m.inputs[2].Value(),
+			websiteURL: m.inputs[3].Value(),
+		}
+		if len(m.inputs) > 4 {
+			state.claudeModel = m.inputs[4].Value()
+		}
+		if len(m.inputs) > 5 {
+			state.defaultSonnet = m.inputs[5].Value()
+		}
+		m.undoHistory = append(m.undoHistory, state)
 	}
 
-	m.inputs[0].SetValue("")
-	m.inputs[1].SetValue("")
-	m.inputs[2].SetValue("")
-	m.inputs[3].SetValue("")
-	m.inputs[4].SetValue("")
-	m.inputs[5].SetValue("")
+	for i := range m.inputs {
+		m.inputs[i].SetValue("")
+	}
 }
 
 func (m *Model) anyFieldHasValue() bool {
-	return m.inputs[0].Value() != "" ||
-		m.inputs[1].Value() != "" ||
-		m.inputs[2].Value() != "" ||
-		m.inputs[3].Value() != "" ||
-		m.inputs[4].Value() != "" ||
-		m.inputs[5].Value() != ""
+	for i := range m.inputs {
+		if m.inputs[i].Value() != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func (m *Model) undoLastClear() bool {
@@ -466,8 +510,12 @@ func (m *Model) undoLastClear() bool {
 	m.inputs[1].SetValue(lastState.token)
 	m.inputs[2].SetValue(lastState.baseURL)
 	m.inputs[3].SetValue(lastState.websiteURL)
-	m.inputs[4].SetValue(lastState.claudeModel)
-	m.inputs[5].SetValue(lastState.defaultSonnet)
+	if len(m.inputs) > 4 {
+		m.inputs[4].SetValue(lastState.claudeModel)
+	}
+	if len(m.inputs) > 5 {
+		m.inputs[5].SetValue(lastState.defaultSonnet)
+	}
 
 	return true
 }
