@@ -11,6 +11,7 @@ import (
 	"github.com/YangQing-Lin/cc-switch-cli/internal/backup"
 	"github.com/YangQing-Lin/cc-switch-cli/internal/config"
 	"github.com/YangQing-Lin/cc-switch-cli/internal/i18n"
+	"github.com/YangQing-Lin/cc-switch-cli/internal/portable"
 	"github.com/YangQing-Lin/cc-switch-cli/internal/template"
 	"github.com/YangQing-Lin/cc-switch-cli/internal/version"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -90,6 +91,9 @@ type Model struct {
 
 	// 更新相关
 	latestRelease *version.ReleaseInfo // 最新版本信息
+
+	// 便携模式相关
+	isPortableMode bool // 是否为便携模式
 }
 
 // tickMsg is sent on every tick for config refresh
@@ -132,6 +136,7 @@ func New(manager *config.Manager) Model {
 		configPath:      configPath,
 		lastModTime:     modTime,
 		templateManager: templateManager,
+		isPortableMode:  portable.IsPortableMode(),
 	}
 	if initErr != nil {
 		m.err = initErr
@@ -500,6 +505,31 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.err = errors.New("没有可用的更新，请先按 'u' 检查更新")
 			m.message = ""
 		}
+	case "p":
+		// Toggle portable mode
+		if m.isPortableMode {
+			// Disable portable mode
+			err := m.disablePortableMode()
+			if err != nil {
+				m.err = fmt.Errorf("禁用便携模式失败: %w", err)
+				m.message = ""
+			} else {
+				m.isPortableMode = false
+				m.message = "✓ 便携模式已禁用"
+				m.err = nil
+			}
+		} else {
+			// Enable portable mode
+			err := m.enablePortableMode()
+			if err != nil {
+				m.err = fmt.Errorf("启用便携模式失败: %w", err)
+				m.message = ""
+			} else {
+				m.isPortableMode = true
+				m.message = "✓ 便携模式已启用"
+				m.err = nil
+			}
+		}
 	}
 	return m, nil
 }
@@ -567,11 +597,17 @@ func (m Model) viewList() string {
 		appName = "Codex CLI"
 	}
 
+	// 添加便携模式标识
+	portableIndicator := ""
+	if m.isPortableMode {
+		portableIndicator = " (便携版)"
+	}
+
 	title := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("#007AFF")).
 		Padding(0, 1).
-		Render(fmt.Sprintf("CC Switch CLI v%s - %s 配置管理", m.getVersion(), appName))
+		Render(fmt.Sprintf("CC Switch CLI v%s - %s 配置管理%s", m.getVersion(), appName, portableIndicator))
 	s.WriteString(title + "\n\n")
 
 	// Status message
@@ -652,6 +688,7 @@ func (m Model) viewList() string {
 		"t: 切换应用",
 		"c: Claude",
 		"x: Codex",
+		"p: 便携模式",
 		"u: 检查更新",
 		"U: 执行更新",
 		"r: 刷新",
@@ -861,4 +898,43 @@ func (m Model) handleBackupListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // getVersion 获取版本号
 func (m Model) getVersion() string {
 	return version.GetVersion()
+}
+
+// enablePortableMode 启用便携模式
+func (m *Model) enablePortableMode() error {
+	// 获取可执行文件目录
+	execPath, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("获取程序路径失败: %w", err)
+	}
+
+	execDir := filepath.Dir(execPath)
+	portableFile := filepath.Join(execDir, "portable.ini")
+
+	// 创建 portable.ini 文件
+	content := []byte("# CC-Switch Portable Mode\n# This file enables portable mode.\n# Delete this file to disable portable mode.\n")
+	if err := os.WriteFile(portableFile, content, 0644); err != nil {
+		return fmt.Errorf("创建 portable.ini 失败: %w", err)
+	}
+
+	return nil
+}
+
+// disablePortableMode 禁用便携模式
+func (m *Model) disablePortableMode() error {
+	// 获取可执行文件目录
+	execPath, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("获取程序路径失败: %w", err)
+	}
+
+	execDir := filepath.Dir(execPath)
+	portableFile := filepath.Join(execDir, "portable.ini")
+
+	// 删除 portable.ini 文件
+	if err := os.Remove(portableFile); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("删除 portable.ini 失败: %w", err)
+	}
+
+	return nil
 }

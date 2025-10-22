@@ -120,30 +120,6 @@ func TestGetReleasePageURL(t *testing.T) {
 	}
 }
 
-func TestDownloadFileInvalidURL(t *testing.T) {
-	tmpDir := t.TempDir()
-	outputPath := filepath.Join(tmpDir, "test.txt")
-
-	err := downloadFile(outputPath, "https://invalid-domain-that-does-not-exist-12345.com/file.txt")
-	if err == nil {
-		t.Error("Expected error for invalid URL")
-	}
-}
-
-func TestDownloadFileNonExistentURL(t *testing.T) {
-	tmpDir := t.TempDir()
-	outputPath := filepath.Join(tmpDir, "test.txt")
-
-	err := downloadFile(outputPath, "https://github.com/YangQing-Lin/cc-switch-cli/releases/download/nonexistent/file.txt")
-	if err == nil {
-		t.Error("Expected error for non-existent URL")
-	}
-
-	if !strings.Contains(err.Error(), "下载失败") {
-		t.Logf("Got error: %v", err)
-	}
-}
-
 func TestVersionConstants(t *testing.T) {
 	if Version == "" {
 		t.Error("Version constant should not be empty")

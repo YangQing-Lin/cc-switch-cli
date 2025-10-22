@@ -103,6 +103,16 @@ func CheckForUpdate() (*ReleaseInfo, bool, error) {
 	return &release, hasUpdate, nil
 }
 
+// UpdateError 自定义更新错误类型，包含失败原因和下载地址
+type UpdateError struct {
+	Reason      string
+	DownloadURL string
+}
+
+func (e *UpdateError) Error() string {
+	return fmt.Sprintf("%s\n\n推荐手动下载：\n%s", e.Reason, e.DownloadURL)
+}
+
 // DownloadUpdate 下载并安装更新
 func DownloadUpdate(release *ReleaseInfo) error {
 	// 确定当前平台的压缩包文件名
@@ -118,58 +128,85 @@ func DownloadUpdate(release *ReleaseInfo) error {
 	}
 
 	if downloadURL == "" {
-		return fmt.Errorf("未找到适合当前平台的压缩包: %s", archiveName)
+		return &UpdateError{
+			Reason:      fmt.Sprintf("未找到适合当前平台 (%s-%s) 的安装包", runtime.GOOS, runtime.GOARCH),
+			DownloadURL: githubReleaseURL,
+		}
 	}
 
 	// 获取当前可执行文件路径
 	exePath, err := os.Executable()
 	if err != nil {
-		return fmt.Errorf("获取可执行文件路径失败: %w", err)
+		return &UpdateError{
+			Reason:      fmt.Sprintf("获取可执行文件路径失败: %v", err),
+			DownloadURL: githubReleaseURL,
+		}
 	}
 
 	// 解析符号链接
 	exePath, err = filepath.EvalSymlinks(exePath)
 	if err != nil {
-		return fmt.Errorf("解析符号链接失败: %w", err)
+		return &UpdateError{
+			Reason:      fmt.Sprintf("解析符号链接失败: %v", err),
+			DownloadURL: githubReleaseURL,
+		}
 	}
 
 	// 创建临时目录
 	tmpDir, err := os.MkdirTemp("", "ccs-update-*")
 	if err != nil {
-		return fmt.Errorf("创建临时目录失败: %w", err)
+		return &UpdateError{
+			Reason:      fmt.Sprintf("创建临时目录失败: %v (可能磁盘空间不足或权限不足)", err),
+			DownloadURL: githubReleaseURL,
+		}
 	}
 	defer os.RemoveAll(tmpDir)
 
 	// 下载压缩包到临时目录
 	archivePath := filepath.Join(tmpDir, archiveName)
 	if err := downloadFile(archivePath, downloadURL); err != nil {
-		return fmt.Errorf("下载失败: %w", err)
+		return &UpdateError{
+			Reason:      fmt.Sprintf("下载失败: %v (请检查网络连接)", err),
+			DownloadURL: githubReleaseURL,
+		}
 	}
 
 	// 解压压缩包
 	binaryPath, err := extractBinary(archivePath, tmpDir)
 	if err != nil {
-		return fmt.Errorf("解压失败: %w", err)
+		return &UpdateError{
+			Reason:      fmt.Sprintf("解压失败: %v (压缩包可能损坏)", err),
+			DownloadURL: githubReleaseURL,
+		}
 	}
 
 	// 设置可执行权限 (Unix-like 系统)
 	if runtime.GOOS != "windows" {
 		if err := os.Chmod(binaryPath, 0755); err != nil {
-			return fmt.Errorf("设置可执行权限失败: %w", err)
+			return &UpdateError{
+				Reason:      fmt.Sprintf("设置可执行权限失败: %v", err),
+				DownloadURL: githubReleaseURL,
+			}
 		}
 	}
 
 	// 备份当前版本
 	backupPath := exePath + ".old"
 	if err := os.Rename(exePath, backupPath); err != nil {
-		return fmt.Errorf("备份当前版本失败: %w", err)
+		return &UpdateError{
+			Reason:      fmt.Sprintf("备份当前版本失败: %v (可能程序正在运行或权限不足)", err),
+			DownloadURL: githubReleaseURL,
+		}
 	}
 
 	// 移动新版本到位
 	if err := os.Rename(binaryPath, exePath); err != nil {
 		// 恢复备份
 		os.Rename(backupPath, exePath)
-		return fmt.Errorf("安装新版本失败: %w", err)
+		return &UpdateError{
+			Reason:      fmt.Sprintf("安装新版本失败: %v (已恢复原版本)", err),
+			DownloadURL: githubReleaseURL,
+		}
 	}
 
 	// 删除备份

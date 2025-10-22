@@ -30,7 +30,9 @@ var updateSelfCmd = &cobra.Command{
 		fmt.Println("开始下载更新...")
 
 		if err := version.DownloadUpdate(release); err != nil {
-			fmt.Printf("❌ 更新失败: %v\n", err)
+			fmt.Println("❌ 更新失败")
+			fmt.Println()
+			fmt.Println(err.Error())
 			return
 		}
 
