@@ -35,6 +35,7 @@ var (
 
 	codexModelSelectorOptions = []selectorOption{
 		{Label: "gpt-5-codex", Value: "gpt-5-codex"},
+		{Label: "gpt-5", Value: "gpt-5"},
 	}
 
 	codexReasoningSelectorOptions = []selectorOption{

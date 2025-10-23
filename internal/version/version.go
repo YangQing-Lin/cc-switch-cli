@@ -16,7 +16,7 @@ import (
 )
 
 // Version 当前版本
-const Version = "1.6.0"
+const Version = "1.6.1"
 
 // BuildDate 构建日期（由编译时注入）
 var BuildDate = "unknown"
