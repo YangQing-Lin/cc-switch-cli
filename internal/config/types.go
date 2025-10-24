@@ -26,6 +26,7 @@ type Provider struct {
 	WebsiteURL     string                 `json:"websiteUrl,omitempty"`
 	Category       string                 `json:"category,omitempty"`
 	CreatedAt      int64                  `json:"createdAt,omitempty"` // 毫秒时间戳
+	SortOrder      int                    `json:"sortOrder,omitempty"` // 列表排序序号，值越小越靠前
 }
 
 // ProviderManager 管理单个应用的所有供应商（与 cc-switch 完全一致）

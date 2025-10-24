@@ -365,6 +365,68 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.cursor < len(m.providers)-1 {
 			m.cursor++
 		}
+	case "=":
+		if len(m.providers) == 0 {
+			break
+		}
+		if m.cursor == 0 {
+			m.message = "已在顶部，无法继续上调"
+			m.err = nil
+			break
+		}
+		provider := m.providers[m.cursor]
+		if err := m.manager.MoveProviderForApp(m.currentApp, provider.ID, -1); err != nil {
+			m.err = err
+			m.message = ""
+			break
+		}
+		targetID := provider.ID
+		m.refreshProviders()
+		m.syncModTime()
+		m.err = nil
+		m.message = "↑ 顺序已上调: " + provider.Name
+		newIndex := m.cursor - 1
+		for idx, p := range m.providers {
+			if p.ID == targetID {
+				newIndex = idx
+				break
+			}
+		}
+		if newIndex < 0 {
+			newIndex = 0
+		}
+		m.cursor = newIndex
+	case "-":
+		if len(m.providers) == 0 {
+			break
+		}
+		if m.cursor >= len(m.providers)-1 {
+			m.message = "已在底部，无法继续下调"
+			m.err = nil
+			break
+		}
+		provider := m.providers[m.cursor]
+		if err := m.manager.MoveProviderForApp(m.currentApp, provider.ID, 1); err != nil {
+			m.err = err
+			m.message = ""
+			break
+		}
+		targetID := provider.ID
+		m.refreshProviders()
+		m.syncModTime()
+		m.err = nil
+		m.message = "↓ 顺序已下调: " + provider.Name
+		newIndex := m.cursor + 1
+		for idx, p := range m.providers {
+			if p.ID == targetID {
+				newIndex = idx
+				break
+			}
+		}
+		if newIndex > len(m.providers)-1 {
+			newIndex = len(m.providers) - 1
+		}
+		m.cursor = newIndex
 	case "enter":
 		if len(m.providers) > 0 {
 			provider := m.providers[m.cursor]
@@ -686,6 +748,8 @@ func (m Model) viewList() string {
 	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#8E8E93"))
 	helps := []string{
 		"↑/↓: 选择",
+		"=: 上调",
+		"-: 下调",
 		"Enter: 切换",
 		"a: 添加",
 		"C: 复制",

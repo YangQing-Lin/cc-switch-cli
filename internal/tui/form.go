@@ -506,7 +506,7 @@ func (m *Model) initForm(provider *config.Provider) {
 	}
 	m.inputs[0].Focus()
 	m.inputs[0].CharLimit = 50
-	m.inputs[0].Width = 50
+	m.inputs[0].Width = 55
 
 	m.inputs[1] = textinput.New()
 	if m.currentApp == "codex" {
@@ -516,7 +516,7 @@ func (m *Model) initForm(provider *config.Provider) {
 	}
 	m.inputs[1].EchoMode = textinput.EchoPassword
 	m.inputs[1].CharLimit = 500
-	m.inputs[1].Width = 50
+	m.inputs[1].Width = 55
 	m.applyTokenVisibility()
 
 	m.inputs[2] = textinput.New()
@@ -526,12 +526,12 @@ func (m *Model) initForm(provider *config.Provider) {
 		m.inputs[2].Placeholder = "https://api.anthropic.com"
 	}
 	m.inputs[2].CharLimit = 200
-	m.inputs[2].Width = 50
+	m.inputs[2].Width = 55
 
 	m.inputs[3] = textinput.New()
 	m.inputs[3].Placeholder = "https://example.com"
 	m.inputs[3].CharLimit = 200
-	m.inputs[3].Width = 50
+	m.inputs[3].Width = 55
 
 	m.inputs[4] = textinput.New()
 	if m.currentApp == "codex" {
@@ -540,18 +540,18 @@ func (m *Model) initForm(provider *config.Provider) {
 		m.inputs[4].Placeholder = "Default (recommended)"
 	}
 	m.inputs[4].CharLimit = 100
-	m.inputs[4].Width = 50
+	m.inputs[4].Width = 55
 
 	if m.isDefaultSonnetFieldVisible() {
 		m.inputs[5] = textinput.New()
 		m.inputs[5].Placeholder = "例如: claude-3-5-sonnet-20241022 (可选)"
 		m.inputs[5].CharLimit = 100
-		m.inputs[5].Width = 50
+		m.inputs[5].Width = 55
 	} else if m.isCodexReasoningFieldVisible() {
 		m.inputs[5] = textinput.New()
 		m.inputs[5].Placeholder = "minimal/low/medium/high"
 		m.inputs[5].CharLimit = 100
-		m.inputs[5].Width = 50
+		m.inputs[5].Width = 55
 	}
 
 	if m.currentApp == "codex" {

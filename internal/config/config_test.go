@@ -569,3 +569,53 @@ func TestBackupCreation(t *testing.T) {
 		t.Errorf("备份文件中的提供商数量 = %d, want 1", len(claudeApp.Providers))
 	}
 }
+
+func TestMoveProviderForApp(t *testing.T) {
+	tmpDir := t.TempDir()
+	manager, err := NewManagerWithDir(tmpDir)
+	if err != nil {
+		t.Fatalf("初始化失败: %v", err)
+	}
+
+	add := func(name string) {
+		t.Helper()
+		if err := manager.AddProviderForApp("claude", name, "", "sk-"+name, "https://api.example.com", "custom", "", ""); err != nil {
+			t.Fatalf("添加配置 %s 失败: %v", name, err)
+		}
+	}
+
+	add("Alpha")
+	add("Beta")
+	add("Gamma")
+
+	providers := manager.ListProvidersForApp("claude")
+	if len(providers) != 3 {
+		t.Fatalf("期望 3 个配置, 实际 %d", len(providers))
+	}
+
+	betaID := providers[1].ID
+
+	if err := manager.MoveProviderForApp("claude", betaID, 1); err != nil {
+		t.Fatalf("下移配置失败: %v", err)
+	}
+
+	ordered := manager.ListProvidersForApp("claude")
+	if ordered[2].Name != "Beta" {
+		t.Fatalf("下移后 Beta 应位于末尾, 实际在 %s", ordered[2].Name)
+	}
+
+	if err := manager.MoveProviderForApp("claude", betaID, -1); err != nil {
+		t.Fatalf("上移配置失败: %v", err)
+	}
+
+	ordered = manager.ListProvidersForApp("claude")
+	if ordered[1].Name != "Beta" {
+		t.Fatalf("上移后 Beta 应回到中间位置, 实际在 %s", ordered[1].Name)
+	}
+
+	for i, p := range ordered {
+		if got := p.SortOrder; got != i+1 {
+			t.Fatalf("SortOrder 应为 %d, 实际 %d", i+1, got)
+		}
+	}
+}

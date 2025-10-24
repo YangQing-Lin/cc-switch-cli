@@ -8,6 +8,71 @@ import (
 	"github.com/google/uuid"
 )
 
+// sortProviders returns providers ordered by SortOrder (if present) and falls back to CreatedAt.
+func sortProviders(providerMap map[string]Provider) []Provider {
+	providers := make([]Provider, 0, len(providerMap))
+	for _, p := range providerMap {
+		providers = append(providers, p)
+	}
+
+	sort.Slice(providers, func(i, j int) bool {
+		a := providers[i]
+		b := providers[j]
+
+		switch {
+		case a.SortOrder > 0 && b.SortOrder > 0:
+			if a.SortOrder == b.SortOrder {
+				return a.CreatedAt < b.CreatedAt
+			}
+			return a.SortOrder < b.SortOrder
+		case a.SortOrder > 0:
+			return true
+		case b.SortOrder > 0:
+			return false
+		default:
+			if a.CreatedAt == b.CreatedAt {
+				return a.Name < b.Name
+			}
+			if a.CreatedAt == 0 || b.CreatedAt == 0 {
+				return a.Name < b.Name
+			}
+			return a.CreatedAt < b.CreatedAt
+		}
+	})
+
+	return providers
+}
+
+// normalizeSortOrder ensures providers have sequential SortOrder values starting at 1.
+func normalizeSortOrder(providerMap map[string]Provider) ([]Provider, bool) {
+	providers := sortProviders(providerMap)
+	changed := false
+	for idx := range providers {
+		expected := idx + 1
+		if providers[idx].SortOrder != expected {
+			providers[idx].SortOrder = expected
+			changed = true
+		}
+	}
+	return providers, changed
+}
+
+// nextSortOrder calculates the next SortOrder value for insertion.
+func nextSortOrder(providerMap map[string]Provider) int {
+	maxOrder := 0
+	count := 0
+	for _, p := range providerMap {
+		count++
+		if p.SortOrder > maxOrder {
+			maxOrder = p.SortOrder
+		}
+	}
+	if maxOrder == 0 {
+		return count + 1
+	}
+	return maxOrder + 1
+}
+
 func (m *Manager) AddProvider(name, apiToken, baseURL, category string) error {
 	return m.AddProviderWithWebsite("claude", name, "", apiToken, baseURL, category)
 }
@@ -29,6 +94,12 @@ func (m *Manager) AddProviderForApp(appName, name, websiteURL, apiToken, baseURL
 	for _, p := range app.Providers {
 		if p.Name == name {
 			return fmt.Errorf("配置 '%s' 已存在", name)
+		}
+	}
+
+	if providers, changed := normalizeSortOrder(app.Providers); changed {
+		for _, p := range providers {
+			app.Providers[p.ID] = p
 		}
 	}
 
@@ -79,6 +150,7 @@ func (m *Manager) AddProviderForApp(appName, name, websiteURL, apiToken, baseURL
 		WebsiteURL:     websiteURL,
 		Category:       category,
 		CreatedAt:      time.Now().UnixMilli(),
+		SortOrder:      nextSortOrder(app.Providers),
 	}
 
 	app.Providers[id] = provider
@@ -117,10 +189,20 @@ func (m *Manager) AddProviderDirect(appName string, provider Provider) error {
 		return fmt.Errorf("Provider ID '%s' 已存在", provider.ID)
 	}
 
+	if providers, changed := normalizeSortOrder(app.Providers); changed {
+		for _, p := range providers {
+			app.Providers[p.ID] = p
+		}
+	}
+
 	for _, p := range app.Providers {
 		if p.Name == provider.Name {
 			return fmt.Errorf("配置名称 '%s' 已存在", provider.Name)
 		}
+	}
+
+	if provider.SortOrder == 0 {
+		provider.SortOrder = nextSortOrder(app.Providers)
 	}
 
 	app.Providers[provider.ID] = provider
@@ -160,6 +242,15 @@ func (m *Manager) DeleteProviderForApp(appName, name string) error {
 	}
 
 	delete(app.Providers, targetID)
+
+	if len(app.Providers) > 0 {
+		if providers, changed := normalizeSortOrder(app.Providers); changed {
+			for _, p := range providers {
+				app.Providers[p.ID] = p
+			}
+		}
+	}
+
 	m.config.Apps[appName] = app
 
 	return m.Save()
@@ -193,16 +284,52 @@ func (m *Manager) ListProvidersForApp(appName string) []Provider {
 		return []Provider{}
 	}
 
-	providers := make([]Provider, 0, len(app.Providers))
-	for _, p := range app.Providers {
-		providers = append(providers, p)
+	return sortProviders(app.Providers)
+}
+
+// MoveProviderForApp 调整指定应用下配置的排序位置，direction 为 -1 表示上移，1 表示下移
+func (m *Manager) MoveProviderForApp(appName, providerID string, direction int) error {
+	if direction == 0 {
+		return nil
 	}
 
-	sort.Slice(providers, func(i, j int) bool {
-		return providers[i].CreatedAt < providers[j].CreatedAt
-	})
+	app, exists := m.config.Apps[appName]
+	if !exists {
+		return fmt.Errorf("应用 '%s' 不存在", appName)
+	}
 
-	return providers
+	providers, changed := normalizeSortOrder(app.Providers)
+	if changed {
+		for _, p := range providers {
+			app.Providers[p.ID] = p
+		}
+	}
+
+	var index int = -1
+	for i, p := range providers {
+		if p.ID == providerID {
+			index = i
+			break
+		}
+	}
+	if index == -1 {
+		return fmt.Errorf("配置不存在")
+	}
+
+	target := index + direction
+	if target < 0 || target >= len(providers) {
+		return nil
+	}
+
+	providers[index], providers[target] = providers[target], providers[index]
+
+	for i := range providers {
+		providers[i].SortOrder = i + 1
+		app.Providers[providers[i].ID] = providers[i]
+	}
+
+	m.config.Apps[appName] = app
+	return m.Save()
 }
 
 func (m *Manager) GetCurrentProvider() *Provider {
