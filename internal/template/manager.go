@@ -249,11 +249,6 @@ func (tm *TemplateManager) ApplyTemplate(templateID string, targetPath string) e
 		return err
 	}
 
-	// 创建备份
-	if err := tm.createBackup(targetPath); err != nil {
-		return fmt.Errorf("failed to create backup: %w", err)
-	}
-
 	// 确保目录存在
 	dir := filepath.Dir(targetPath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -300,30 +295,6 @@ func (tm *TemplateManager) GetDiff(templateID string, targetPath string) (string
 	// 生成 diff
 	diff := GenerateDiff(currentContent, template.Content, "Current", "Template: "+template.Name)
 	return diff, nil
-}
-
-// createBackup 创建文件备份
-func (tm *TemplateManager) createBackup(filePath string) error {
-	// 如果文件不存在，不需要备份
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		return nil
-	}
-
-	// 生成备份文件名
-	timestamp := time.Now().Format("20060102_150405")
-	backupPath := fmt.Sprintf("%s.bak.%s", filePath, timestamp)
-
-	// 复制文件
-	content, err := os.ReadFile(filePath)
-	if err != nil {
-		return err
-	}
-
-	if err := os.WriteFile(backupPath, content, 0644); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 // generateDisplayName 根据 ID 生成友好的显示名称

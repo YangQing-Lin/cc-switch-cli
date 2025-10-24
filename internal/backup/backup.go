@@ -6,22 +6,18 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/YangQing-Lin/cc-switch-cli/internal/config"
-	"github.com/YangQing-Lin/cc-switch-cli/internal/i18n"
 )
 
 const (
 	// MaxBackups is the maximum number of backups to keep
 	MaxBackups = 10
-	// MaxAutoBackups is the maximum number of auto backups to keep
-	MaxAutoBackups = 5
 	// BackupDirName is the name of the backup directory
 	BackupDirName = "backups"
-	// AutoBackupPrefix is the prefix for auto backup files
-	AutoBackupPrefix = "auto_"
+	// backupPrefix is the prefix for backup files
+	backupPrefix = "backup_"
 )
 
 var shanghaiLocation = func() *time.Location {
@@ -44,20 +40,9 @@ type BackupInfo struct {
 	Size      int64
 }
 
-// CreateBackup creates a timestamped backup of the current config file
-// Returns the backup ID (timestamp portion) or empty string if source doesn't exist
+// CreateBackup creates a timestamped backup of the current config file.
+// Returns the backup ID (timestamp portion) or empty string if source doesn't exist.
 func CreateBackup(configPath string) (string, error) {
-	return createBackup(configPath, false)
-}
-
-// CreateAutoBackup creates an automatic backup (called by Save())
-// Returns the backup ID or empty string if source doesn't exist
-func CreateAutoBackup(configPath string) (string, error) {
-	return createBackup(configPath, true)
-}
-
-// createBackup internal function to create backup (manual or auto)
-func createBackup(configPath string, isAuto bool) (string, error) {
 	// Check if source config exists
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		return "", nil
@@ -65,12 +50,7 @@ func createBackup(configPath string, isAuto bool) (string, error) {
 
 	// Generate timestamp and backup ID
 	timestamp := nowInShanghai().Format("20060102_150405")
-	var backupID string
-	if isAuto {
-		backupID = fmt.Sprintf("%sbackup_%s", AutoBackupPrefix, timestamp)
-	} else {
-		backupID = fmt.Sprintf("backup_%s", timestamp)
-	}
+	backupID := fmt.Sprintf("%s%s", backupPrefix, timestamp)
 
 	// Create backup directory
 	configDir := filepath.Dir(configPath)
@@ -93,28 +73,14 @@ func createBackup(configPath string, isAuto bool) (string, error) {
 		return "", fmt.Errorf("failed to write backup file: %w", err)
 	}
 
-	// Cleanup old backups (different limits for auto vs manual)
-	if isAuto {
-		cleanupAutoBackups(backupDir, MaxAutoBackups)
-	} else {
-		cleanupManualBackups(backupDir, MaxBackups)
-	}
+	// Cleanup old backups (manual backups only)
+	cleanupManualBackups(backupDir, MaxBackups)
 
 	return backupID, nil
 }
 
-// cleanupAutoBackups removes old auto backup files
-func cleanupAutoBackups(backupDir string, retain int) {
-	cleanupBackupsByPrefix(backupDir, AutoBackupPrefix, retain)
-}
-
 // cleanupManualBackups removes old manual backup files
 func cleanupManualBackups(backupDir string, retain int) {
-	cleanupBackupsByPrefix(backupDir, "backup_", retain)
-}
-
-// cleanupBackupsByPrefix removes old backup files with given prefix
-func cleanupBackupsByPrefix(backupDir, prefix string, retain int) {
 	if retain == 0 {
 		return
 	}
@@ -131,7 +97,7 @@ func cleanupBackupsByPrefix(backupDir, prefix string, retain int) {
 		}
 
 		// Only process files with matching prefix
-		if !strings.HasPrefix(entry.Name(), prefix) {
+		if len(entry.Name()) < len(backupPrefix) || entry.Name()[:len(backupPrefix)] != backupPrefix {
 			continue
 		}
 
@@ -252,8 +218,8 @@ func ExportConfig(configPath, outputPath string) error {
 	return nil
 }
 
-// ImportConfig imports configuration from a file with automatic backup
-// Returns the backup ID created before import
+// ImportConfig imports configuration from a file without creating additional backups.
+// Deprecated: prefer higher-level flows which allow callers to manage backups explicitly.
 func ImportConfig(configPath, importPath string) (string, error) {
 	// Read import file
 	importData, err := os.ReadFile(importPath)
@@ -267,18 +233,12 @@ func ImportConfig(configPath, importPath string) (string, error) {
 		return "", fmt.Errorf("invalid configuration file: %w", err)
 	}
 
-	// Create automatic backup before import
-	backupID, err := CreateBackup(configPath)
-	if err != nil {
-		return "", fmt.Errorf("failed to create backup: %w", err)
-	}
-
 	// Write new configuration
 	if err := os.WriteFile(configPath, importData, 0600); err != nil {
-		return backupID, fmt.Errorf("failed to write configuration: %w", err)
+		return "", fmt.Errorf("failed to write configuration: %w", err)
 	}
 
-	return backupID, nil
+	return "", nil
 }
 
 // ListBackups returns a list of all backup files sorted by timestamp (newest first)
@@ -341,14 +301,6 @@ func RestoreBackup(configPath, backupPath string) error {
 	var config config.MultiAppConfig
 	if err := json.Unmarshal(data, &config); err != nil {
 		return fmt.Errorf("backup file is corrupted: %w", err)
-	}
-
-	// Create a backup of current config before restoring
-	backupID, err := CreateBackup(configPath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: failed to backup current config: %v\n", err)
-	} else if backupID != "" {
-		fmt.Printf("%s: %s\n", i18n.T("backup.created"), backupID)
 	}
 
 	// Write restored configuration

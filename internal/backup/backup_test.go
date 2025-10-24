@@ -48,8 +48,8 @@ func TestCreateBackup(t *testing.T) {
 		t.Fatal("Expected non-empty backup ID")
 	}
 
-	if strings.HasPrefix(backupID, AutoBackupPrefix) {
-		t.Errorf("Manual backup should not have auto prefix, got: %s", backupID)
+	if !strings.HasPrefix(backupID, backupPrefix) {
+		t.Errorf("Manual backup should use '%s' prefix, got: %s", backupPrefix, backupID)
 	}
 
 	backupDir := filepath.Join(tmpDir, BackupDirName)
@@ -66,45 +66,6 @@ func TestCreateBackup(t *testing.T) {
 
 	if string(backupData) != string(data) {
 		t.Error("Backup content does not match original config")
-	}
-}
-
-func TestCreateAutoBackup(t *testing.T) {
-	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "config.json")
-
-	testConfig := config.MultiAppConfig{
-		Version: 2,
-		Apps:    map[string]config.ProviderManager{},
-	}
-
-	data, err := json.Marshal(testConfig)
-	if err != nil {
-		t.Fatalf("Failed to marshal test config: %v", err)
-	}
-
-	if err := os.WriteFile(configPath, data, 0600); err != nil {
-		t.Fatalf("Failed to write test config: %v", err)
-	}
-
-	backupID, err := CreateAutoBackup(configPath)
-	if err != nil {
-		t.Fatalf("CreateAutoBackup failed: %v", err)
-	}
-
-	if backupID == "" {
-		t.Fatal("Expected non-empty backup ID")
-	}
-
-	if !strings.HasPrefix(backupID, AutoBackupPrefix) {
-		t.Errorf("Auto backup should have auto prefix, got: %s", backupID)
-	}
-
-	backupDir := filepath.Join(tmpDir, BackupDirName)
-	backupPath := filepath.Join(backupDir, backupID+".json")
-
-	if _, err := os.Stat(backupPath); os.IsNotExist(err) {
-		t.Fatalf("Auto backup file not created: %s", backupPath)
 	}
 }
 
@@ -253,8 +214,8 @@ func TestImportConfig(t *testing.T) {
 		t.Fatalf("ImportConfig failed: %v", err)
 	}
 
-	if backupID == "" {
-		t.Error("Expected non-empty backup ID after import")
+	if backupID != "" {
+		t.Errorf("Expected empty backup ID after import, got: %s", backupID)
 	}
 
 	configData, err := os.ReadFile(configPath)
@@ -267,14 +228,11 @@ func TestImportConfig(t *testing.T) {
 	}
 
 	backupDir := filepath.Join(tmpDir, BackupDirName)
-	backupPath := filepath.Join(backupDir, backupID+".json")
-	backupData, err := os.ReadFile(backupPath)
-	if err != nil {
-		t.Fatalf("Failed to read backup file: %v", err)
-	}
-
-	if string(backupData) != string(originalData) {
-		t.Error("Backup does not contain original config")
+	if info, err := os.Stat(backupDir); err == nil && info.IsDir() {
+		entries, _ := os.ReadDir(backupDir)
+		if len(entries) != 0 {
+			t.Errorf("Expected no additional backups to be created, found %d files", len(entries))
+		}
 	}
 }
 

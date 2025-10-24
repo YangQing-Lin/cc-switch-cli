@@ -25,7 +25,11 @@ var restoreCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		latest, _ := cmd.Flags().GetBool("latest")
 		list, _ := cmd.Flags().GetBool("list")
-		force, _ := cmd.Flags().GetBool("force")
+		force, err := cmd.Flags().GetBool("force")
+		if err != nil {
+			return err
+		}
+		_ = force
 		validate, _ := cmd.Flags().GetBool("validate")
 
 		// 获取备份目录
@@ -86,16 +90,6 @@ var restoreCmd = &cobra.Command{
 		configPath, err := config.GetConfigPath()
 		if err != nil {
 			return fmt.Errorf("获取配置文件路径失败: %w", err)
-		}
-
-		// 备份当前配置（除非使用 --force）
-		if !force && utils.FileExists(configPath) {
-			fmt.Println("备份当前配置...")
-			backupPath := configPath + ".before-restore"
-			if err := utils.CopyFile(configPath, backupPath); err != nil {
-				return fmt.Errorf("备份当前配置失败: %w", err)
-			}
-			fmt.Printf("✓ 当前配置已备份到: %s\n", backupPath)
 		}
 
 		// 恢复配置

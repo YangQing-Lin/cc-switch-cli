@@ -3,7 +3,6 @@ package tui
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/YangQing-Lin/cc-switch-cli/internal/template"
@@ -86,7 +85,7 @@ func (m Model) handleDiffPreviewKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.err = fmt.Errorf("应用模板失败: %w", err)
 			m.message = ""
 		} else {
-			m.message = fmt.Sprintf("✓ 模板已成功应用到: %s\n✓ 备份已创建", m.selectedTargetPath)
+			m.message = fmt.Sprintf("✓ 模板已成功应用到: %s", m.selectedTargetPath)
 			m.err = nil
 			m.templateMode = "list"
 			m.selectedTemplate = nil
@@ -239,7 +238,7 @@ func (m Model) viewDiffPreview() string {
 			s.WriteString("\n(向下滚动查看更多...)\n")
 		}
 
-		s.WriteString("\n无需备份\n\n")
+		s.WriteString("\n")
 	} else {
 		if m.diffContent == "" || m.diffContent == "未发现差异" {
 			s.WriteString("(无差异)\n\n")
@@ -276,11 +275,7 @@ func (m Model) viewDiffPreview() string {
 		warningStyle := lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#FF3B30")).
 			Bold(true)
-		s.WriteString("\n" + warningStyle.Render("⚠ 即将覆盖目标文件") + "\n")
-
-		timestamp := "YYYYMMDD_HHMMSS"
-		backupName := filepath.Base(m.selectedTargetPath) + ".bak." + timestamp
-		s.WriteString(fmt.Sprintf("备份将保存为: %s\n\n", backupName))
+		s.WriteString("\n" + warningStyle.Render("⚠ 即将覆盖目标文件") + "\n\n")
 	}
 
 	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#8E8E93"))

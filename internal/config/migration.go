@@ -3,11 +3,6 @@ package config
 import (
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
-	"time"
-
-	"github.com/YangQing-Lin/cc-switch-cli/internal/utils"
 )
 
 func (m *Manager) isEmptyConfig(data []byte) bool {
@@ -74,11 +69,6 @@ func (m *Manager) migrateV1Config(data []byte) error {
 	}
 
 	fmt.Println("检测到 v1 配置格式，自动迁移到 v2...")
-	backupPath := m.configPath + ".v1.backup." + fmt.Sprintf("%d", time.Now().Unix())
-	if os.WriteFile(backupPath, data, 0600) == nil {
-		fmt.Printf("已备份 v1 配置到: %s\n", backupPath)
-	}
-
 	m.config = &MultiAppConfig{
 		Version: 2,
 		Apps: map[string]ProviderManager{
@@ -101,9 +91,6 @@ func (m *Manager) migrateV2OldConfig(data []byte) error {
 	}
 
 	fmt.Println("检测到旧版配置格式，自动迁移到新格式...")
-	if err := m.archiveOldConfig(); err != nil {
-		fmt.Printf("警告: 归档旧配置失败: %v\n", err)
-	}
 
 	m.config = &MultiAppConfig{Version: 2, Apps: oldConfig.Apps}
 	m.ensureProvidersInitialized()
@@ -129,10 +116,6 @@ func (m *Manager) parseV2Config(data []byte) error {
 	}
 
 	fmt.Println("警告: 配置格式不支持，将创建默认配置")
-	backupPath := m.configPath + ".unsupported." + fmt.Sprintf("%d", time.Now().Unix())
-	if os.WriteFile(backupPath, data, 0600) == nil {
-		fmt.Printf("已备份不支持的配置到: %s\n", backupPath)
-	}
 	m.createDefaultConfig()
 	return m.Save()
 }
@@ -144,31 +127,4 @@ func (m *Manager) ensureProvidersInitialized() {
 			m.config.Apps[appName] = app
 		}
 	}
-}
-
-func (m *Manager) archiveOldConfig() error {
-	if !utils.FileExists(m.configPath) {
-		return nil
-	}
-
-	dir := filepath.Dir(m.configPath)
-	archiveDir := filepath.Join(dir, "archive")
-	if err := os.MkdirAll(archiveDir, 0755); err != nil {
-		return fmt.Errorf("创建归档目录失败: %w", err)
-	}
-
-	timestamp := time.Now().Unix()
-	archivePath := filepath.Join(archiveDir, fmt.Sprintf("config.v2-old.backup.%d.json", timestamp))
-
-	data, err := os.ReadFile(m.configPath)
-	if err != nil {
-		return fmt.Errorf("读取配置文件失败: %w", err)
-	}
-
-	if err := os.WriteFile(archivePath, data, 0600); err != nil {
-		return fmt.Errorf("写入归档文件失败: %w", err)
-	}
-
-	fmt.Printf("已归档旧配置: %s\n", archivePath)
-	return nil
 }

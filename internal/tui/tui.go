@@ -883,15 +883,7 @@ func (m Model) viewBackupList() string {
 			// 备份文件名
 			filename := filepath.Base(b.Path)
 
-			// 标记自动备份
-			backupType := ""
-			if strings.HasPrefix(filename, backup.AutoBackupPrefix) {
-				backupType = " (自动)"
-			} else {
-				backupType = " (手动)"
-			}
-
-			displayName := filename + backupType
+			displayName := filename
 
 			if isCursor {
 				displayName = lipgloss.NewStyle().

@@ -539,7 +539,7 @@ func TestBackupCreation(t *testing.T) {
 		t.Fatalf("添加提供商失败: %v", err)
 	}
 
-	// 添加第二个提供商（应该创建备份）
+	// 添加第二个提供商（确认不会创建额外备份文件）
 	err = manager.AddProviderForApp("claude", "Provider 2", "", "sk-test2", "https://api2.com", "custom", "", "")
 	if err != nil {
 		t.Fatalf("添加第二个提供商失败: %v", err)
@@ -549,24 +549,8 @@ func TestBackupCreation(t *testing.T) {
 	configPath := filepath.Join(tmpDir, "config.json")
 	backupPath := configPath + ".bak.cli"
 
-	if _, err := os.Stat(backupPath); os.IsNotExist(err) {
-		t.Error("应该创建 .bak.cli 备份文件")
-	}
-
-	// 验证备份内容（应该只包含第一个提供商）
-	backupData, err := os.ReadFile(backupPath)
-	if err != nil {
-		t.Fatalf("读取备份文件失败: %v", err)
-	}
-
-	var backupConfig MultiAppConfig
-	if err := json.Unmarshal(backupData, &backupConfig); err != nil {
-		t.Fatalf("解析备份文件失败: %v", err)
-	}
-
-	claudeApp := backupConfig.Apps["claude"]
-	if len(claudeApp.Providers) != 1 {
-		t.Errorf("备份文件中的提供商数量 = %d, want 1", len(claudeApp.Providers))
+	if _, err := os.Stat(backupPath); err == nil {
+		t.Error("不应自动创建 .bak.cli 备份文件")
 	}
 }
 

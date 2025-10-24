@@ -109,12 +109,6 @@ func runApplyTemplate(templateID string) {
 
 	color.Green("✓ Template '%s' applied to: %s", tpl.Name, targetPath)
 
-	// 查找备份文件
-	backupFiles, _ := filepath.Glob(targetPath + ".bak.*")
-	if len(backupFiles) > 0 {
-		latestBackup := backupFiles[len(backupFiles)-1]
-		color.Yellow("✓ Backup created at: %s", latestBackup)
-	}
 }
 
 // selectTarget 交互式选择目标路径

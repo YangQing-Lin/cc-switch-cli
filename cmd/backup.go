@@ -175,7 +175,7 @@ func cleanOldBackups(backupDir string, keep int) error {
 var backupListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "列出所有备份",
-	Long:  `列出所有可用的配置备份文件，包括自动备份和手动备份。`,
+	Long:  `列出所有可用的配置手动备份文件。`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// 获取配置目录
 		home, err := os.UserHomeDir()
@@ -280,19 +280,6 @@ var backupRestoreCmd = &cobra.Command{
 		configPath, err := config.GetConfigPath()
 		if err != nil {
 			return fmt.Errorf("获取配置文件路径失败: %w", err)
-		}
-
-		// 在恢复前创建当前配置的备份
-		if utils.FileExists(configPath) {
-			timestamp := time.Now().UTC().Format("20060102_150405")
-			preRestoreBackup := fmt.Sprintf("backup_%s_pre-restore.json", timestamp)
-			preRestorePath := filepath.Join(filepath.Dir(backupPath), preRestoreBackup)
-
-			if err := utils.CopyFile(configPath, preRestorePath); err != nil {
-				fmt.Printf("⚠ 警告: 无法创建恢复前备份: %v\n", err)
-			} else {
-				fmt.Printf("✓ 已创建恢复前备份: %s\n", preRestoreBackup)
-			}
 		}
 
 		// 恢复配置
