@@ -245,14 +245,7 @@ func findSelectorOptionIndex(options []selectorOption, value string) int {
 }
 
 func (m Model) isReadOnlyField(index int) bool {
-	switch m.currentApp {
-	case "claude":
-		return index == 4
-	case "codex":
-		return index == 4 || index == 5
-	default:
-		return false
-	}
+	return false
 }
 
 func (m *Model) applyTokenVisibility() {
@@ -417,7 +410,7 @@ func (m Model) viewForm() string {
 	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#8E8E93"))
 	helpText := "Tab: 下一项 • Shift+Tab: 上一项"
 	if m.isSelectorField(m.focusIndex) {
-		helpText = "→: 显示模型选项 • ←: 隐藏模型选项 • Tab: 下一项"
+		helpText = "→: 显示模型选项 • ←: 隐藏模型选项 • 可直接输入自定义内容"
 	}
 	s.WriteString(helpStyle.Render(helpText))
 
