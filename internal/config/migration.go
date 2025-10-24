@@ -3,6 +3,11 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+	"time"
+
+	"github.com/YangQing-Lin/cc-switch-cli/internal/utils"
 )
 
 func (m *Manager) isEmptyConfig(data []byte) bool {
@@ -92,6 +97,12 @@ func (m *Manager) migrateV2OldConfig(data []byte) error {
 
 	fmt.Println("检测到旧版配置格式，自动迁移到新格式...")
 
+	backupPath, err := m.archiveConfigBackup(data, "config.v2-old.backup")
+	if err != nil {
+		return fmt.Errorf("归档旧配置失败: %w", err)
+	}
+	fmt.Printf("已将旧配置归档到 %s\n", backupPath)
+
 	m.config = &MultiAppConfig{Version: 2, Apps: oldConfig.Apps}
 	m.ensureProvidersInitialized()
 
@@ -127,4 +138,26 @@ func (m *Manager) ensureProvidersInitialized() {
 			m.config.Apps[appName] = app
 		}
 	}
+}
+
+func (m *Manager) archiveConfigBackup(data []byte, prefix string) (string, error) {
+	baseDir := filepath.Dir(m.configPath)
+	if m.customDir != "" {
+		baseDir = m.customDir
+	}
+
+	archiveDir := filepath.Join(baseDir, "archive")
+	if err := os.MkdirAll(archiveDir, 0700); err != nil {
+		return "", fmt.Errorf("创建归档目录失败: %w", err)
+	}
+
+	timestamp := time.Now().UTC().Format("20060102T150405Z")
+	filename := fmt.Sprintf("%s.%s.json", prefix, timestamp)
+	backupPath := filepath.Join(archiveDir, filename)
+
+	if err := utils.AtomicWriteFile(backupPath, data, 0600); err != nil {
+		return "", fmt.Errorf("写入归档文件失败: %w", err)
+	}
+
+	return backupPath, nil
 }

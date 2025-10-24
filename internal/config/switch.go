@@ -55,7 +55,7 @@ func (m *Manager) writeProviderConfig(appName string, provider *Provider) error 
 }
 
 func (m *Manager) writeClaudeConfig(provider *Provider) error {
-	settingsPath, err := GetClaudeSettingsPath()
+	settingsPath, err := m.GetClaudeSettingsPathWithDir()
 	if err != nil {
 		return fmt.Errorf("获取 Claude 设置文件路径失败: %w", err)
 	}
@@ -112,12 +112,12 @@ func (m *Manager) writeClaudeConfig(provider *Provider) error {
 }
 
 func (m *Manager) writeCodexConfig(provider *Provider) error {
-	authJsonPath, err := GetCodexAuthJsonPath()
+	authJsonPath, err := m.GetCodexAuthJsonPathWithDir()
 	if err != nil {
 		return fmt.Errorf("获取 Codex auth.json 路径失败: %w", err)
 	}
 
-	configPath, err := GetCodexConfigPath()
+	configPath, err := m.GetCodexConfigPathWithDir()
 	if err != nil {
 		return fmt.Errorf("获取 Codex config.toml 路径失败: %w", err)
 	}
