@@ -659,14 +659,17 @@ func (m Model) handleAppSelectKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.appCursor--
 		}
 	case "down", "j":
-		if m.appCursor < 1 {
+		if m.appCursor < 2 { // 现在有 3 个选项：Claude(0), Codex(1), Gemini(2)
 			m.appCursor++
 		}
 	case "enter":
-		if m.appCursor == 0 {
+		switch m.appCursor {
+		case 0:
 			m.currentApp = "claude"
-		} else {
+		case 1:
 			m.currentApp = "codex"
+		case 2:
+			m.currentApp = "gemini"
 		}
 		m.cursor = 0
 		m.refreshProviders()
@@ -782,6 +785,7 @@ func (m Model) viewList() string {
 		"t: 切换应用",
 		"c: Claude",
 		"x: Codex",
+		"g: Gemini",
 		"p: 便携模式",
 		"u: 检查更新",
 		"U: 执行更新",
@@ -814,7 +818,7 @@ func (m Model) viewAppSelect() string {
 		Render(fmt.Sprintf("选择应用 (v%s)", m.getVersion()))
 	s.WriteString(title + "\n\n")
 
-	apps := []string{"Claude Code", "Codex CLI"}
+	apps := []string{"Claude Code", "Codex CLI", "Gemini CLI"}
 	for i, app := range apps {
 		marker := "○"
 		style := lipgloss.NewStyle().Padding(0, 1)
