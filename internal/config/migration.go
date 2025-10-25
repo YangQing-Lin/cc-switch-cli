@@ -79,6 +79,7 @@ func (m *Manager) migrateV1Config(data []byte) error {
 		Apps: map[string]ProviderManager{
 			"claude": v1Config,
 			"codex":  {Providers: make(map[string]Provider), Current: ""},
+			"gemini": {Providers: make(map[string]Provider), Current: ""},
 		},
 	}
 
@@ -132,8 +133,18 @@ func (m *Manager) parseV2Config(data []byte) error {
 }
 
 func (m *Manager) ensureProvidersInitialized() {
-	for appName, app := range m.config.Apps {
-		if app.Providers == nil {
+	// 确保所有必需的应用都存在
+	requiredApps := []string{"claude", "codex", "gemini"}
+	for _, appName := range requiredApps {
+		app, exists := m.config.Apps[appName]
+		if !exists {
+			// 应用不存在，创建新应用
+			m.config.Apps[appName] = ProviderManager{
+				Providers: make(map[string]Provider),
+				Current:   "",
+			}
+		} else if app.Providers == nil {
+			// 应用存在但 Providers 为 nil，初始化
 			app.Providers = make(map[string]Provider)
 			m.config.Apps[appName] = app
 		}
