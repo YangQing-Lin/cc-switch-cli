@@ -12,6 +12,7 @@ import (
 	"github.com/YangQing-Lin/cc-switch-cli/internal/lock"
 	"github.com/YangQing-Lin/cc-switch-cli/internal/portable"
 	"github.com/YangQing-Lin/cc-switch-cli/internal/tui"
+	"github.com/YangQing-Lin/cc-switch-cli/internal/version"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 )
@@ -61,6 +62,9 @@ var rootCmd = &cobra.Command{
 }
 
 func Execute() {
+	// 启动时清理历史更新临时目录
+	version.CleanupOldUpdateDirs()
+
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

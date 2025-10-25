@@ -15,6 +15,29 @@ import (
 	"time"
 )
 
+// CleanupOldUpdateDirs 清理 /tmp 目录下的历史更新临时目录
+// 静默执行，失败不报错
+func CleanupOldUpdateDirs() {
+	tmpDir := os.TempDir()
+	entries, err := os.ReadDir(tmpDir)
+	if err != nil {
+		return // 静默失败
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		name := entry.Name()
+		// 匹配 ccs-update-* 和 ccs-install-* 模式
+		if strings.HasPrefix(name, "ccs-update-") || strings.HasPrefix(name, "ccs-install-") {
+			fullPath := filepath.Join(tmpDir, name)
+			_ = os.RemoveAll(fullPath) // 静默删除，忽略错误
+		}
+	}
+}
+
 // Version 当前版本
 const Version = "1.7.1"
 
