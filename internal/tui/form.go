@@ -52,8 +52,11 @@ var (
 
 // handleFormKeys handles keys in add/edit mode
 func (m Model) handleFormKeys(msg tea.KeyMsg) (bool, tea.Model, tea.Cmd) {
+	// Debug: 记录按键
+	keyStr := msg.String()
+
 	if m.isSelectorField(m.focusIndex) {
-		switch msg.String() {
+		switch keyStr {
 		case "right":
 			if !m.modelSelectorActive {
 				options := m.selectorOptions(m.focusIndex)
@@ -67,6 +70,8 @@ func (m Model) handleFormKeys(msg tea.KeyMsg) (bool, tea.Model, tea.Cmd) {
 					idx = 0
 				}
 				m.modelSelectorCursor = idx
+				m.err = nil
+				m.message = "DEBUG: 右键已处理,选择器已激活"
 				return true, m, nil
 			}
 		case "left":
@@ -414,6 +419,8 @@ func (m Model) viewForm() string {
 	}
 	s.WriteString(helpStyle.Render(helpText))
 
+	baseView := s.String()
+
 	if m.isSelectorField(m.focusIndex) && m.modelSelectorActive {
 		var selectorContent strings.Builder
 		selectorTitle := m.selectorTitle(m.focusIndex)
@@ -443,24 +450,28 @@ func (m Model) viewForm() string {
 		selectorContent.WriteString("\n")
 		selectorHelp := lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#8E8E93")).
-			Render("↑/↓: 选择 • Enter: 确认")
+			Render("↑/↓: 选择 • Enter: 确认 • ESC/←: 取消")
 		selectorContent.WriteString(selectorHelp)
 
 		selectorPanel := lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("#007AFF")).
+			Background(lipgloss.Color("#FFFFFF")).
 			Padding(1, 2).
 			Render(selectorContent.String())
 
-		return lipgloss.JoinHorizontal(
-			lipgloss.Top,
-			s.String(),
-			"  ",
+		return lipgloss.Place(
+			m.width,
+			m.height,
+			lipgloss.Center,
+			lipgloss.Center,
 			selectorPanel,
+			lipgloss.WithWhitespaceChars(" "),
+			lipgloss.WithWhitespaceForeground(lipgloss.Color("#00000080")),
 		)
 	}
 
-	return s.String()
+	return baseView
 }
 
 func (m Model) formLabels() []string {
