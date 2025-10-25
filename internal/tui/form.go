@@ -399,7 +399,7 @@ func (m Model) viewForm() string {
 
 	s.WriteString(submitStyle.Render("保存 (Enter)") + " ")
 	s.WriteString(cancelStyle.Render("取消 (ESC)") + " ")
-	s.WriteString(clearStyle.Render("清空内容 (Ctrl+D)") + " ")
+	s.WriteString(clearStyle.Render("清空 (Ctrl+D)") + " ")
 	s.WriteString(undoStyle.Render("回退 (Ctrl+Z)") + " ")
 	keyState := "隐藏"
 	if m.apiTokenVisible {
