@@ -134,24 +134,6 @@ func DownloadUpdate(release *ReleaseInfo) error {
 		}
 	}
 
-	// 获取当前可执行文件路径
-	exePath, err := os.Executable()
-	if err != nil {
-		return &UpdateError{
-			Reason:      fmt.Sprintf("获取可执行文件路径失败: %v", err),
-			DownloadURL: githubReleaseURL,
-		}
-	}
-
-	// 解析符号链接
-	exePath, err = filepath.EvalSymlinks(exePath)
-	if err != nil {
-		return &UpdateError{
-			Reason:      fmt.Sprintf("解析符号链接失败: %v", err),
-			DownloadURL: githubReleaseURL,
-		}
-	}
-
 	// 创建临时目录
 	tmpDir, err := os.MkdirTemp("", "ccs-update-*")
 	if err != nil {
@@ -171,12 +153,78 @@ func DownloadUpdate(release *ReleaseInfo) error {
 		}
 	}
 
-	// 解压压缩包
-	binaryPath, err := extractBinary(archivePath, tmpDir)
+	// 安装二进制文件
+	return InstallBinary(archivePath, false)
+}
+
+// InstallBinary 从本地文件安装二进制文件（支持压缩包或裸二进制）
+// sourcePath: 源文件路径（.tar.gz, .zip 或裸二进制）
+// skipPlatformCheck: 是否跳过平台验证
+func InstallBinary(sourcePath string, skipPlatformCheck bool) error {
+	// 获取当前可执行文件路径
+	exePath, err := os.Executable()
 	if err != nil {
 		return &UpdateError{
-			Reason:      fmt.Sprintf("解压失败: %v (压缩包可能损坏)", err),
+			Reason:      fmt.Sprintf("获取可执行文件路径失败: %v", err),
 			DownloadURL: githubReleaseURL,
+		}
+	}
+
+	// 解析符号链接
+	exePath, err = filepath.EvalSymlinks(exePath)
+	if err != nil {
+		return &UpdateError{
+			Reason:      fmt.Sprintf("解析符号链接失败: %v", err),
+			DownloadURL: githubReleaseURL,
+		}
+	}
+
+	// 创建临时目录用于解压
+	tmpDir, err := os.MkdirTemp("", "ccs-install-*")
+	if err != nil {
+		return &UpdateError{
+			Reason:      fmt.Sprintf("创建临时目录失败: %v (可能磁盘空间不足或权限不足)", err),
+			DownloadURL: githubReleaseURL,
+		}
+	}
+	defer os.RemoveAll(tmpDir)
+
+	var binaryPath string
+
+	// 判断是压缩包还是裸二进制
+	if isArchive(sourcePath) {
+		// 平台验证（从文件名推断）
+		if !skipPlatformCheck {
+			if err := validatePlatformFromFilename(sourcePath); err != nil {
+				return &UpdateError{
+					Reason:      err.Error(),
+					DownloadURL: githubReleaseURL,
+				}
+			}
+		}
+
+		// 解压压缩包
+		binaryPath, err = extractBinary(sourcePath, tmpDir)
+		if err != nil {
+			return &UpdateError{
+				Reason:      fmt.Sprintf("解压失败: %v (压缩包可能损坏)", err),
+				DownloadURL: githubReleaseURL,
+			}
+		}
+	} else {
+		// 裸二进制文件，直接复制到临时目录
+		binaryName := "ccs"
+		if runtime.GOOS == "windows" {
+			binaryName = "ccs.exe"
+		}
+		binaryPath = filepath.Join(tmpDir, binaryName)
+
+		// 复制文件
+		if err := copyFile(sourcePath, binaryPath); err != nil {
+			return &UpdateError{
+				Reason:      fmt.Sprintf("复制二进制文件失败: %v", err),
+				DownloadURL: githubReleaseURL,
+			}
 		}
 	}
 
@@ -353,4 +401,61 @@ func downloadFile(filepath string, url string) error {
 // GetReleasePageURL 获取 Release 页面 URL
 func GetReleasePageURL() string {
 	return githubReleaseURL
+}
+
+// isArchive 判断文件是否为压缩包
+func isArchive(filename string) bool {
+	return strings.HasSuffix(filename, ".tar.gz") || strings.HasSuffix(filename, ".zip")
+}
+
+// validatePlatformFromFilename 从文件名验证平台信息
+// 文件名格式: cc-switch-cli-1.7.0-linux-amd64.tar.gz
+func validatePlatformFromFilename(filename string) error {
+	basename := filepath.Base(filename)
+
+	// 移除扩展名
+	basename = strings.TrimSuffix(basename, ".tar.gz")
+	basename = strings.TrimSuffix(basename, ".zip")
+
+	// 分割文件名: cc-switch-cli-1.7.0-linux-amd64
+	parts := strings.Split(basename, "-")
+	if len(parts) < 2 {
+		return fmt.Errorf("无法从文件名推断平台信息: %s\n提示: 使用 --force 跳过平台验证", basename)
+	}
+
+	// 提取 OS 和 ARCH（最后两个部分）
+	fileOS := parts[len(parts)-2]
+	fileArch := parts[len(parts)-1]
+
+	// 验证平台
+	if fileOS != runtime.GOOS {
+		return fmt.Errorf("平台不匹配: 文件是为 %s 构建的，但当前系统是 %s\n提示: 使用 --force 跳过平台验证", fileOS, runtime.GOOS)
+	}
+
+	if fileArch != runtime.GOARCH {
+		return fmt.Errorf("架构不匹配: 文件是为 %s 构建的，但当前系统是 %s\n提示: 使用 --force 跳过平台验证", fileArch, runtime.GOARCH)
+	}
+
+	return nil
+}
+
+// copyFile 复制文件
+func copyFile(src, dst string) error {
+	sourceFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer sourceFile.Close()
+
+	destFile, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer destFile.Close()
+
+	if _, err := io.Copy(destFile, sourceFile); err != nil {
+		return err
+	}
+
+	return destFile.Sync()
 }
