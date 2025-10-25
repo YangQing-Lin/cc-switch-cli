@@ -2,16 +2,27 @@ package cmd
 
 import (
 	"fmt"
+	"runtime"
 	"strconv"
 
 	"github.com/YangQing-Lin/cc-switch-cli/internal/config"
 	"github.com/spf13/cobra"
 )
 
+// getExportFileExample 返回当前系统保存并加载配置文件的命令示例
+func getExportFileExample() string {
+	switch runtime.GOOS {
+	case "windows":
+		return "ccs gc > gemini-env.ps1\n     . .\\gemini-env.ps1"
+	default:
+		return "ccs gc > /tmp/gemini-env.sh\n     source /tmp/gemini-env.sh"
+	}
+}
+
 var geminiEnvCmd = &cobra.Command{
 	Use:   "env [编号或配置名称]",
 	Short: "输出 Gemini 配置的环境变量 export 语句",
-	Long: `输出指定 Gemini 配置的环境变量 export 语句。
+	Long: `输出指定 Gemini 配置的环境变量设置语句。
 
 如果不指定参数，默认输出当前选中的配置。
 
@@ -22,12 +33,10 @@ var geminiEnvCmd = &cobra.Command{
      ccs gc mygemini     # 输出名为 mygemini 的配置
 
   2. 加载到当前 shell:
-     eval $(ccs gc)      # 加载当前配置到环境变量
-     eval $(ccs gc 3)    # 加载编号 3 的配置
+     ` + config.GetEnvCommandExample() + `  # 加载环境变量
 
   3. 保存到文件:
-     ccs gc > /tmp/gemini-env.sh
-     source /tmp/gemini-env.sh`,
+     ` + getExportFileExample(),
 	Aliases: []string{"export", "e"},
 	Args:    cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {

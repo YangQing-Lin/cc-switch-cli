@@ -49,7 +49,7 @@ var geminiSwitchCmd = &cobra.Command{
 		}
 
 		fmt.Printf("\n运行以下命令加载环境变量:\n")
-		fmt.Printf("  eval $(ccs gc)\n")
+		fmt.Printf("  %s\n", config.GetEnvCommandExample())
 
 		return nil
 	},

@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"runtime"
 	"strings"
 	"time"
 
@@ -14,7 +15,18 @@ func (m *Manager) writeGeminiConfig(provider *Provider) error {
 	return nil
 }
 
-// GenerateGeminiEnvExport generates bash export statements for the given Gemini provider
+// GetEnvCommandExample 返回当前系统加载环境变量的命令示例
+func GetEnvCommandExample() string {
+	switch runtime.GOOS {
+	case "windows":
+		// 优先 PowerShell (Windows 10+ 默认)
+		return "ccs gc | Invoke-Expression"
+	default: // linux, darwin
+		return "eval $(ccs gc)"
+	}
+}
+
+// GenerateGeminiEnvExport generates environment variable export statements for the given Gemini provider
 func GenerateGeminiEnvExport(provider *Provider, configName string) (string, error) {
 	if provider == nil {
 		return "", fmt.Errorf("provider 不能为空")
@@ -35,21 +47,38 @@ func GenerateGeminiEnvExport(provider *Provider, configName string) (string, err
 		}
 	}
 
-	// 构建 export 语句（使用 %q 确保安全转义）
+	// 根据系统生成对应格式
 	var sb strings.Builder
-	if baseURL != "" {
-		sb.WriteString(fmt.Sprintf("export GOOGLE_GEMINI_BASE_URL=%s\n", shellQuote(baseURL)))
-	}
-	if apiKey != "" {
-		sb.WriteString(fmt.Sprintf("export GEMINI_API_KEY=%s\n", shellQuote(apiKey)))
-	}
-	if model != "" {
-		sb.WriteString(fmt.Sprintf("export GEMINI_MODEL=%s\n", shellQuote(model)))
+	switch runtime.GOOS {
+	case "windows":
+		// PowerShell 格式
+		if baseURL != "" {
+			sb.WriteString(fmt.Sprintf("$env:GOOGLE_GEMINI_BASE_URL=%s\n", shellQuote(baseURL)))
+		}
+		if apiKey != "" {
+			sb.WriteString(fmt.Sprintf("$env:GEMINI_API_KEY=%s\n", shellQuote(apiKey)))
+		}
+		if model != "" {
+			sb.WriteString(fmt.Sprintf("$env:GEMINI_MODEL=%s\n", shellQuote(model)))
+		}
+	default: // linux, darwin
+		// Unix export 格式
+		if baseURL != "" {
+			sb.WriteString(fmt.Sprintf("export GOOGLE_GEMINI_BASE_URL=%s\n", shellQuote(baseURL)))
+		}
+		if apiKey != "" {
+			sb.WriteString(fmt.Sprintf("export GEMINI_API_KEY=%s\n", shellQuote(apiKey)))
+		}
+		if model != "" {
+			sb.WriteString(fmt.Sprintf("export GEMINI_MODEL=%s\n", shellQuote(model)))
+		}
 	}
 
-	// 添加成功提示（注释形式，eval 时会被忽略）
+	// 修正提示文本 - 指导用户执行命令
 	if configName != "" {
-		sb.WriteString(fmt.Sprintf("# 加载 %s 配置到环境变量成功！\n", configName))
+		sb.WriteString("\n") // 空一行做区分
+		sb.WriteString(fmt.Sprintf("# 运行以下命令加载 %s 配置:\n", configName))
+		sb.WriteString(fmt.Sprintf("#   %s\n", GetEnvCommandExample()))
 	}
 
 	return sb.String(), nil
@@ -57,14 +86,25 @@ func GenerateGeminiEnvExport(provider *Provider, configName string) (string, err
 
 // shellQuote quotes a string for safe use in shell export statements
 func shellQuote(s string) string {
-	// 如果字符串包含特殊字符，使用单引号包裹并转义单引号
-	if strings.ContainsAny(s, " \t\n\"'$`\\!*?[](){};<>|&~") {
-		// 转义单引号: ' -> '\''
-		escaped := strings.ReplaceAll(s, "'", "'\\''")
-		return fmt.Sprintf("'%s'", escaped)
+	switch runtime.GOOS {
+	case "windows":
+		// PowerShell 使用双引号,转义内部双引号和反引号
+		if strings.ContainsAny(s, " \t\n\"'$`\\;") {
+			escaped := strings.ReplaceAll(s, "`", "``")
+			escaped = strings.ReplaceAll(escaped, "\"", "`\"")
+			return fmt.Sprintf("\"%s\"", escaped)
+		}
+		return s
+	default:
+		// Unix 使用单引号
+		if strings.ContainsAny(s, " \t\n\"'$`\\!*?[](){};<>|&~") {
+			// 转义单引号: ' -> '\''
+			escaped := strings.ReplaceAll(s, "'", "'\\''")
+			return fmt.Sprintf("'%s'", escaped)
+		}
+		// 简单字符串直接返回
+		return s
 	}
-	// 简单字符串直接返回
-	return s
 }
 
 // ExtractGeminiConfigFromProvider extracts Gemini configuration fields from a Provider
