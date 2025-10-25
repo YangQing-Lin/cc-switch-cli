@@ -81,7 +81,8 @@ func (tm *TemplateManager) loadBuiltinTemplates() error {
 			}
 
 			// 读取模板内容
-			content, err := builtinTemplatesFS.ReadFile(filepath.Join(set.dir, filename))
+			// 注意：embed.FS 要求使用正斜杠 / 作为路径分隔符，不能使用 filepath.Join
+			content, err := builtinTemplatesFS.ReadFile(set.dir + "/" + filename)
 			if err != nil {
 				return fmt.Errorf("failed to read %s: %w", filename, err)
 			}
