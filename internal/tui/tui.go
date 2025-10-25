@@ -33,8 +33,8 @@ type Model struct {
 	deleteName          string // 要删除的配置名称
 	inputs              []textinput.Model
 	focusIndex          int
-	currentApp          string              // "claude" or "codex"
-	appCursor           int                 // 应用选择光标 (0=Claude, 1=Codex)
+	currentApp          string              // "claude" or "codex" or "gemini"
+	appCursor           int                 // 应用选择光标 (0=Claude, 1=Codex, 2=Gemini)
 	lastModTime         time.Time           // 配置文件最后修改时间
 	configPath          string              // 配置文件路径
 	configCorrupted     bool                // 配置文件是否损坏
@@ -149,10 +149,14 @@ func (m *Model) refreshTemplates() {
 }
 
 func (m Model) currentTemplateCategory() string {
-	if m.currentApp == "codex" {
+	switch m.currentApp {
+	case "codex":
 		return template.CategoryCodexMd
+	case "gemini":
+		return "" // Gemini 暂不支持模板功能
+	default:
+		return template.CategoryClaudeMd
 	}
-	return template.CategoryClaudeMd
 }
 
 func (m Model) templateCategoryDisplay(category string) string {
@@ -493,10 +497,15 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.err = nil
 		return m, tea.ClearScreen
 	case "t":
-		// Toggle between Claude and Codex
-		if m.currentApp == "claude" {
+		// Toggle between Claude, Codex and Gemini
+		switch m.currentApp {
+		case "claude":
 			m.currentApp = "codex"
-		} else {
+		case "codex":
+			m.currentApp = "gemini"
+		case "gemini":
+			m.currentApp = "claude"
+		default:
 			m.currentApp = "claude"
 		}
 		m.cursor = 0
@@ -519,6 +528,15 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.cursor = 0
 			m.refreshProviders()
 			m.message = "切换到 Codex"
+			m.err = nil
+		}
+	case "g":
+		// Switch to Gemini
+		if m.currentApp != "gemini" {
+			m.currentApp = "gemini"
+			m.cursor = 0
+			m.refreshProviders()
+			m.message = "切换到 Gemini"
 			m.err = nil
 		}
 	case "b":
@@ -664,8 +682,11 @@ func (m Model) viewList() string {
 
 	// Title with current app indicator and version
 	appName := "Claude Code"
-	if m.currentApp == "codex" {
+	switch m.currentApp {
+	case "codex":
 		appName = "Codex CLI"
+	case "gemini":
+		appName = "Gemini CLI"
 	}
 
 	// 添加便携模式标识

@@ -45,6 +45,11 @@ var (
 		{Label: "high", Value: "high"},
 	}
 
+	geminiModelSelectorOptions = []selectorOption{
+		{Label: "gemini-2.5-pro", Value: "gemini-2.5-pro"},
+		{Label: "gemini-2.5-flash", Value: "gemini-2.5-flash"},
+	}
+
 	codexConfigBaseURLRegex   = regexp.MustCompile(`base_url\s*=\s*"([^"]+)"`)
 	codexConfigModelRegex     = regexp.MustCompile(`model\s*=\s*"([^"]+)"`)
 	codexConfigReasoningRegex = regexp.MustCompile(`model_reasoning_effort\s*=\s*"([^"]+)"`)
@@ -216,6 +221,11 @@ func (m Model) selectorOptions(index int) []selectorOption {
 		case 5:
 			return codexReasoningSelectorOptions
 		}
+	case "gemini":
+		switch index {
+		case 3:
+			return geminiModelSelectorOptions
+		}
 	}
 	return nil
 }
@@ -235,6 +245,10 @@ func (m Model) selectorTitle(index int) string {
 		}
 		if index == 5 {
 			return "选择推理强度"
+		}
+	case "gemini":
+		if index == 3 {
+			return "选择模型"
 		}
 	}
 	return ""
@@ -266,6 +280,55 @@ func (m *Model) applyTokenVisibility() {
 
 func (m *Model) submitForm() {
 	name := m.inputs[0].Value()
+
+	// Gemini 特殊处理：字段映射为 [Name, API Key, Base URL, Model]
+	if m.currentApp == "gemini" {
+		apiKey := m.inputs[1].Value()
+		baseURL := m.inputs[2].Value()
+		model := m.inputs[3].Value()
+
+		if name == "" {
+			m.err = errors.New(i18n.T("error.name_required"))
+			return
+		}
+		if apiKey == "" {
+			m.err = errors.New("API Key 不能为空")
+			return
+		}
+		if baseURL == "" {
+			m.err = errors.New(i18n.T("error.base_url_required"))
+			return
+		}
+		if model == "" {
+			m.err = errors.New("模型不能为空")
+			return
+		}
+
+		var err error
+		if m.mode == "edit" {
+			err = m.manager.UpdateGeminiProvider(m.editName, name, baseURL, apiKey, model)
+		} else {
+			err = m.manager.AddGeminiProvider(name, baseURL, apiKey, model)
+		}
+
+		if err != nil {
+			m.err = err
+			m.message = ""
+		} else {
+			if m.mode == "edit" {
+				m.message = i18n.T("success.provider_updated")
+			} else {
+				m.message = i18n.T("success.provider_added")
+			}
+			m.err = nil
+			m.mode = "list"
+			m.refreshProviders()
+			m.syncModTime()
+		}
+		return
+	}
+
+	// Claude/Codex 标准处理
 	token := m.inputs[1].Value()
 	baseURL := m.inputs[2].Value()
 	websiteURL := m.inputs[3].Value()
@@ -475,6 +538,9 @@ func (m Model) viewForm() string {
 }
 
 func (m Model) formLabels() []string {
+	if m.currentApp == "gemini" {
+		return []string{"配置名称", "GEMINI_API_KEY", "GOOGLE_GEMINI_BASE_URL", "GEMINI_MODEL"}
+	}
 	base := []string{"配置名称", "API Key", "Base URL", "网站 (可选)"}
 	if m.currentApp == "codex" {
 		return append(base, "默认模型（必填）", "推理强度（必填）")
@@ -495,6 +561,9 @@ func (m *Model) initForm(provider *config.Provider) {
 	if m.isDefaultSonnetFieldVisible() || m.isCodexReasoningFieldVisible() {
 		fieldCount = 6
 	}
+	if m.currentApp == "gemini" {
+		fieldCount = 4 // Gemini: Name, API Key, Base URL, Model
+	}
 
 	m.inputs = make([]textinput.Model, fieldCount)
 	m.focusIndex = 0
@@ -503,9 +572,12 @@ func (m *Model) initForm(provider *config.Provider) {
 	m.apiTokenVisible = false
 
 	m.inputs[0] = textinput.New()
-	if m.currentApp == "codex" {
+	switch m.currentApp {
+	case "codex":
 		m.inputs[0].Placeholder = "例如: OpenAI 官方"
-	} else {
+	case "gemini":
+		m.inputs[0].Placeholder = "例如: Google Gemini"
+	default:
 		m.inputs[0].Placeholder = "例如: Anthropic 官方"
 	}
 	m.inputs[0].Focus()
@@ -513,9 +585,12 @@ func (m *Model) initForm(provider *config.Provider) {
 	m.inputs[0].Width = 55
 
 	m.inputs[1] = textinput.New()
-	if m.currentApp == "codex" {
+	switch m.currentApp {
+	case "codex":
 		m.inputs[1].Placeholder = "sk-xxxxx"
-	} else {
+	case "gemini":
+		m.inputs[1].Placeholder = "GEMINI_API_KEY"
+	default:
 		m.inputs[1].Placeholder = "sk-ant-xxxxx"
 	}
 	m.inputs[1].EchoMode = textinput.EchoPassword
@@ -524,27 +599,37 @@ func (m *Model) initForm(provider *config.Provider) {
 	m.applyTokenVisibility()
 
 	m.inputs[2] = textinput.New()
-	if m.currentApp == "codex" {
+	switch m.currentApp {
+	case "codex":
 		m.inputs[2].Placeholder = "https://pro.privnode.com/v1"
-	} else {
+	case "gemini":
+		m.inputs[2].Placeholder = "https://generativelanguage.googleapis.com"
+	default:
 		m.inputs[2].Placeholder = "https://api.anthropic.com"
 	}
 	m.inputs[2].CharLimit = 200
 	m.inputs[2].Width = 55
 
 	m.inputs[3] = textinput.New()
-	m.inputs[3].Placeholder = "https://example.com"
-	m.inputs[3].CharLimit = 200
+	if m.currentApp == "gemini" {
+		m.inputs[3].Placeholder = "gemini-2.5-pro"
+		m.inputs[3].CharLimit = 100
+	} else {
+		m.inputs[3].Placeholder = "https://example.com"
+		m.inputs[3].CharLimit = 200
+	}
 	m.inputs[3].Width = 55
 
-	m.inputs[4] = textinput.New()
-	if m.currentApp == "codex" {
-		m.inputs[4].Placeholder = "gpt-5-codex"
-	} else {
-		m.inputs[4].Placeholder = "Default (recommended)"
+	if fieldCount > 4 {
+		m.inputs[4] = textinput.New()
+		if m.currentApp == "codex" {
+			m.inputs[4].Placeholder = "gpt-5-codex"
+		} else {
+			m.inputs[4].Placeholder = "Default (recommended)"
+		}
+		m.inputs[4].CharLimit = 100
+		m.inputs[4].Width = 55
 	}
-	m.inputs[4].CharLimit = 100
-	m.inputs[4].Width = 55
 
 	if m.isDefaultSonnetFieldVisible() {
 		m.inputs[5] = textinput.New()
@@ -558,32 +643,47 @@ func (m *Model) initForm(provider *config.Provider) {
 		m.inputs[5].Width = 55
 	}
 
-	if m.currentApp == "codex" {
+	if m.currentApp == "codex" && fieldCount > 4 {
 		m.inputs[4].SetValue("gpt-5-codex")
 		if len(m.inputs) > 5 {
 			m.inputs[5].SetValue("high")
 		}
 	}
 
+	if m.currentApp == "gemini" {
+		m.inputs[3].SetValue("gemini-2.5-pro")
+	}
+
 	if provider != nil {
 		m.inputs[0].SetValue(provider.Name)
 
-		token := config.ExtractTokenFromProvider(provider)
-		baseURL := config.ExtractBaseURLFromProvider(provider)
-		modelValue := config.ExtractModelFromProvider(provider)
-		var extraValue string
-		if m.isDefaultSonnetFieldVisible() {
-			extraValue = config.ExtractDefaultSonnetModelFromProvider(provider)
-		} else if m.isCodexReasoningFieldVisible() {
-			extraValue = config.ExtractCodexReasoningFromProvider(provider)
-		}
+		if m.currentApp == "gemini" {
+			// Gemini 特殊处理：字段映射为 [Name, API Key, Base URL, Model]
+			baseURL, apiKey, model := config.ExtractGeminiConfigFromProvider(provider)
+			m.inputs[1].SetValue(apiKey)
+			m.inputs[2].SetValue(baseURL)
+			m.inputs[3].SetValue(model)
+		} else {
+			// Claude/Codex 标准处理
+			token := config.ExtractTokenFromProvider(provider)
+			baseURL := config.ExtractBaseURLFromProvider(provider)
+			modelValue := config.ExtractModelFromProvider(provider)
+			var extraValue string
+			if m.isDefaultSonnetFieldVisible() {
+				extraValue = config.ExtractDefaultSonnetModelFromProvider(provider)
+			} else if m.isCodexReasoningFieldVisible() {
+				extraValue = config.ExtractCodexReasoningFromProvider(provider)
+			}
 
-		m.inputs[1].SetValue(token)
-		m.inputs[2].SetValue(baseURL)
-		m.inputs[3].SetValue(provider.WebsiteURL)
-		m.inputs[4].SetValue(modelValue)
-		if len(m.inputs) > 5 {
-			m.inputs[5].SetValue(extraValue)
+			m.inputs[1].SetValue(token)
+			m.inputs[2].SetValue(baseURL)
+			m.inputs[3].SetValue(provider.WebsiteURL)
+			if fieldCount > 4 {
+				m.inputs[4].SetValue(modelValue)
+			}
+			if len(m.inputs) > 5 {
+				m.inputs[5].SetValue(extraValue)
+			}
 		}
 	} else if m.copyFromProvider != nil {
 		m.inputs[0].SetValue("")

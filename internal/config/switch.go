@@ -49,6 +49,8 @@ func (m *Manager) writeProviderConfig(appName string, provider *Provider) error 
 		return m.writeClaudeConfig(provider)
 	case "codex":
 		return m.writeCodexConfig(provider)
+	case "gemini":
+		return m.writeGeminiConfig(provider)
 	default:
 		return fmt.Errorf("不支持的应用: %s", appName)
 	}

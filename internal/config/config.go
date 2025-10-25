@@ -77,6 +77,7 @@ func (m *Manager) createDefaultConfig() {
 		Apps: map[string]ProviderManager{
 			"claude": {Providers: make(map[string]Provider), Current: ""},
 			"codex":  {Providers: make(map[string]Provider), Current: ""},
+			"gemini": {Providers: make(map[string]Provider), Current: ""},
 		},
 	}
 }
