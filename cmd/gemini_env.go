@@ -40,6 +40,7 @@ var geminiEnvCmd = &cobra.Command{
 	Aliases: []string{"export", "e"},
 	Args:    cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		quiet, _ := cmd.Flags().GetBool("quiet")
 		manager, err := config.NewManager()
 		if err != nil {
 			return fmt.Errorf("初始化配置管理器失败: %w", err)
@@ -79,7 +80,7 @@ var geminiEnvCmd = &cobra.Command{
 		}
 
 		// 生成 export 语句
-		exportScript, err := config.GenerateGeminiEnvExport(provider, configName)
+		exportScript, err := config.GenerateGeminiEnvExport(provider, configName, quiet)
 		if err != nil {
 			return fmt.Errorf("生成 export 语句失败: %w", err)
 		}
@@ -93,6 +94,9 @@ var geminiEnvCmd = &cobra.Command{
 
 func init() {
 	geminiCmd.AddCommand(geminiEnvCmd)
+
+	// 添加 --quiet 标志
+	geminiEnvCmd.Flags().BoolP("quiet", "q", false, "静默模式，不输出注释（用于管道传递）")
 
 	// 将 env 命令注册为 gemini 的默认命令（当执行 'ccs gc' 时）
 	// 通过设置 RunE 来实现
