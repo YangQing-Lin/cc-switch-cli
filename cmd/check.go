@@ -8,7 +8,6 @@ import (
 
 	"github.com/YangQing-Lin/cc-switch-cli/internal/config"
 	"github.com/YangQing-Lin/cc-switch-cli/internal/utils"
-	"github.com/YangQing-Lin/cc-switch-cli/internal/vscode"
 	"github.com/spf13/cobra"
 )
 
@@ -63,25 +62,6 @@ func runCheck() error {
 	checkFile("Codex auth.json", codexAuthPath)
 	fmt.Println()
 
-	// 检查 VS Code 集成
-	fmt.Println("VS Code 集成状态")
-	fmt.Println("----------------")
-
-	runningApps := vscode.GetRunningApps()
-	if len(runningApps) == 0 {
-		fmt.Println("未检测到运行中的 VS Code/Cursor")
-	} else {
-		for _, app := range runningApps {
-			fmt.Printf("✓ %s 正在运行\n", app.Name)
-			if vscode.ConfigExists(app) {
-				fmt.Printf("  配置文件: %s\n", vscode.GetSettingsPath(app))
-			} else {
-				fmt.Printf("  配置文件: 未找到\n")
-			}
-		}
-	}
-	fmt.Println()
-
 	// 检查配置管理器
 	fmt.Println("配置管理状态")
 	fmt.Println("------------")
@@ -110,11 +90,7 @@ func runCheck() error {
 	fmt.Println("环境建议")
 	fmt.Println("--------")
 	if !utils.FileExists(configPath) {
-		fmt.Println("• 运行 'cc-switch init' 初始化配置")
-	}
-	if len(runningApps) > 0 {
-		fmt.Println("• 检测到 VS Code/Cursor 正在运行")
-		fmt.Println("  切换配置前建议关闭编辑器或重新加载窗口")
+		fmt.Println("• 运行 'ccs' 启动 TUI 界面添加配置")
 	}
 
 	return nil

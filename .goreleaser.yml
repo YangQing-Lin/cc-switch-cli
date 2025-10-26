@@ -23,6 +23,10 @@ builds:
     env:
       - CGO_ENABLED=0
 
+    # Windows 资源文件（减少误报）
+    flags:
+      - -trimpath
+
     # 目标平台
     goos:
       - linux

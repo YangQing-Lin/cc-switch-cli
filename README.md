@@ -753,7 +753,6 @@ go tool cover -html=coverage.out
 - **internal/utils**: 69.7% - 文件原子操作、JSON读写
 - **internal/settings**: 82.4% - 设置管理、语言切换
 - **internal/i18n**: 60.0% - 国际化支持（中英文）
-- **internal/vscode**: 25.0% - VS Code/Cursor 集成
 - **internal/config**: 32.1% - Provider CRUD、配置管理
 
 #### 集成测试
