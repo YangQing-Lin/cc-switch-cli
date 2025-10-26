@@ -39,7 +39,7 @@ func CleanupOldUpdateDirs() {
 }
 
 // Version 当前版本
-const Version = "1.8.1"
+const Version = "1.8.2"
 
 // BuildDate 构建日期（由编译时注入）
 var BuildDate = "unknown"
