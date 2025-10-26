@@ -14,8 +14,8 @@ builds:
     main: ./main.go
 
     # 构建时注入版本信息
+    # 移除 -s -w 以避免 Windows Defender 误报
     ldflags:
-      - -s -w
       - -X github.com/YangQing-Lin/cc-switch-cli/internal/version.Version={{.Version}}
       - -X github.com/YangQing-Lin/cc-switch-cli/internal/version.BuildDate={{.Date}}
       - -X github.com/YangQing-Lin/cc-switch-cli/internal/version.GitCommit={{.ShortCommit}}
