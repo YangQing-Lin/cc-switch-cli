@@ -105,6 +105,14 @@ release:
     2. 解压并将 `ccs` (或 `ccs.exe`) 移动到 PATH 目录
     3. 运行 `ccs version` 验证安装
 
+    **macOS 用户注意**:
+    下载后需要移除隔离标记才能运行：
+    ```bash
+    xattr -d com.apple.quarantine ccs
+    chmod +x ccs
+    ```
+    或右键点击 `ccs` → 选择"打开" → 点击"打开"确认
+
     **Full Changelog**: https://github.com/YangQing-Lin/cc-switch-cli/compare/{{ .PreviousTag }}...{{ .Tag }}
 
 # 不发布到其他平台
