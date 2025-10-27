@@ -224,14 +224,18 @@ func tickCmd() tea.Cmd {
 
 // checkUpdateCmd returns a command that checks for updates
 func checkUpdateCmd() tea.Cmd {
-	return func() tea.Msg {
-		release, hasUpdate, err := version.CheckForUpdate()
-		return updateCheckMsg{
-			release:   release,
-			hasUpdate: hasUpdate,
-			err:       err,
-		}
-	}
+    return func() tea.Msg {
+        // 在禁用自更新的构建中，直接返回错误提示，避免触发网络行为
+        if !version.SelfUpdateEnabled() {
+            return updateCheckMsg{release: nil, hasUpdate: false, err: fmt.Errorf("自更新已禁用：请使用 'ccs check-updates' 打开 Releases 页面")}
+        }
+        release, hasUpdate, err := version.CheckForUpdate()
+        return updateCheckMsg{
+            release:   release,
+            hasUpdate: hasUpdate,
+            err:       err,
+        }
+    }
 }
 
 // downloadUpdateCmd returns a command that downloads and installs update
@@ -579,21 +583,30 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.message = ""
 			m.err = nil
 		}
-	case "u":
-		// Check for updates
-		m.message = "正在检查更新..."
-		m.err = nil
-		return m, checkUpdateCmd()
-	case "U":
-		// Download and install update (if available)
-		if m.latestRelease != nil {
-			m.message = "正在下载更新..."
-			m.err = nil
-			return m, downloadUpdateCmd(m.latestRelease)
-		} else {
-			m.err = errors.New("没有可用的更新，请先按 'u' 检查更新")
-			m.message = ""
-		}
+    case "u":
+        // Check for updates
+        if !version.SelfUpdateEnabled() {
+            m.err = fmt.Errorf("自更新已禁用：请使用 'check-updates' 打开 Releases 页面")
+            m.message = ""
+            return m, nil
+        }
+        m.message = "正在检查更新..."
+        m.err = nil
+        return m, checkUpdateCmd()
+    case "U":
+        // Download and install update (if available)
+        if !version.SelfUpdateEnabled() {
+            m.err = fmt.Errorf("自更新已禁用：请前往 Releases 页面手动下载")
+            m.message = ""
+            return m, nil
+        }
+        if m.latestRelease != nil {
+            m.message = "正在下载更新..."
+            m.err = nil
+            return m, downloadUpdateCmd(m.latestRelease)
+        }
+        m.err = errors.New("没有可用的更新，请先按 'u' 检查更新")
+        m.message = ""
 	case "p":
 		// Toggle portable mode
 		if m.isPortableMode {

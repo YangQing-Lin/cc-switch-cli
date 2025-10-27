@@ -1,0 +1,55 @@
+name: Test Build (Snapshot)
+
+on:
+  push:
+    branches:
+      - wd-false-positive-test
+      - feature/**
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Snapshot Artifacts
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Run unit tests
+        run: go test ./internal/... -v
+
+      - name: Run GoReleaser (snapshot)
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: build --clean --snapshot
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ccs-snapshot-artifacts
+          path: dist/**
+          if-no-files-found: error
+

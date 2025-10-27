@@ -44,6 +44,28 @@ builds:
       post:
         - cmd: echo "Built {{ .Name }} for {{ .Os }}/{{ .Arch }}"
 
+  # Windows 专用：禁用自更新的测试构建（使用 build tag: no_self_update）
+  - id: ccs_no_update
+    binary: ccs
+    main: ./main.go
+    ldflags:
+      - -X github.com/YangQing-Lin/cc-switch-cli/internal/version.Version={{.Version}}
+      - -X github.com/YangQing-Lin/cc-switch-cli/internal/version.BuildDate={{.Date}}
+      - -X github.com/YangQing-Lin/cc-switch-cli/internal/version.GitCommit={{.ShortCommit}}
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+      - -tags
+      - no_self_update
+    goos:
+      - windows
+    goarch:
+      - amd64
+    hooks:
+      post:
+        - cmd: echo "Built NO-UPDATE {{ .Name }} for {{ .Os }}/{{ .Arch }}"
+
 archives:
   - id: default
     format_overrides:
@@ -56,6 +78,17 @@ archives:
 
     files:
       # 只包含二进制文件，不打包额外文件
+      - none*
+
+  # 针对禁用自更新的 Windows 构建，使用独立命名，便于识别
+  - id: no_update
+    builds:
+      - ccs_no_update
+    format_overrides:
+      - goos: windows
+        format: zip
+    name_template: "{{ .ProjectName }}-{{ .Version }}-no-update-{{ .Os }}-{{ .Arch }}"
+    files:
       - none*
 
 checksum:
