@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 )
 
 // CleanupOldUpdateDirs 清理 /tmp 目录下的历史更新临时目录

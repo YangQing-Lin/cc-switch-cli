@@ -1,20 +1,27 @@
 package cmd
 
 import (
-	"fmt"
-	"os"
+    "fmt"
+    "os"
 
-	"github.com/YangQing-Lin/cc-switch-cli/internal/version"
-	"github.com/spf13/cobra"
+    "github.com/YangQing-Lin/cc-switch-cli/internal/version"
+    "github.com/spf13/cobra"
 )
 
 var updateSelfCmd = &cobra.Command{
-	Use:   "update",
-	Short: "更新到最新版本",
-	Long:  `从 GitHub Releases 下载并安装最新版本，或从本地文件安装`,
-	Run: func(cmd *cobra.Command, args []string) {
-		fromFile, _ := cmd.Flags().GetString("from-file")
-		force, _ := cmd.Flags().GetBool("force")
+    Use:   "update",
+    Short: "更新到最新版本",
+    Long:  `从 GitHub Releases 下载并安装最新版本，或从本地文件安装`,
+    Run: func(cmd *cobra.Command, args []string) {
+        // 在禁用自更新的构建中，直接引导用户前往 Releases 页面
+        if !version.SelfUpdateEnabled() {
+            fmt.Printf("当前版本: %s\n", version.GetVersion())
+            fmt.Println("此构建已禁用自更新功能。")
+            fmt.Printf("请访问 Releases 页面手动下载：\n  %s\n", version.GetReleasePageURL())
+            return
+        }
+        fromFile, _ := cmd.Flags().GetString("from-file")
+        force, _ := cmd.Flags().GetBool("force")
 
 		// 从本地文件安装
 		if fromFile != "" {
@@ -65,14 +72,14 @@ var updateSelfCmd = &cobra.Command{
 			return
 		}
 
-		fmt.Printf("\n✅ 更新成功！已更新到版本 %s\n", release.TagName)
-		fmt.Println("请重新运行程序以使用新版本")
-	},
+        fmt.Printf("\n✅ 更新成功！已更新到版本 %s\n", release.TagName)
+        fmt.Println("请重新运行程序以使用新版本")
+    },
 }
 
 func init() {
-	rootCmd.AddCommand(updateSelfCmd)
+    rootCmd.AddCommand(updateSelfCmd)
 
-	updateSelfCmd.Flags().StringP("from-file", "f", "", "从本地文件安装（支持 .tar.gz, .zip 或裸二进制）")
-	updateSelfCmd.Flags().Bool("force", false, "跳过平台验证（高级用户）")
+    updateSelfCmd.Flags().StringP("from-file", "f", "", "从本地文件安装（支持 .tar.gz, .zip 或裸二进制）")
+    updateSelfCmd.Flags().Bool("force", false, "跳过平台验证（高级用户）")
 }
