@@ -68,6 +68,8 @@ builds:
 
 archives:
   - id: default
+    builds:
+      - ccs
     format_overrides:
       # Windows 使用 zip，其他平台使用 tar.gz
       - goos: windows
