@@ -3,7 +3,9 @@
     "allow": [
       "Bash(go fmt:*)",
       "Bash(go test:*)",
-      "Bash(go build:*)"
+      "Bash(go build:*)",
+      "Skill(codex)",
+      "Bash(uv run:*)"
     ],
     "deny": [],
     "ask": []

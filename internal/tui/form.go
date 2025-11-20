@@ -36,6 +36,8 @@ var (
 	codexModelSelectorOptions = []selectorOption{
 		{Label: "gpt-5-codex", Value: "gpt-5-codex"},
 		{Label: "gpt-5", Value: "gpt-5"},
+		{Label: "gpt-5.1-codex", Value: "gpt-5.1-codex"},
+		{Label: "gpt-5.1-codex-max", Value: "gpt-5.1-codex-max"},
 	}
 
 	codexReasoningSelectorOptions = []selectorOption{
@@ -48,6 +50,7 @@ var (
 	geminiModelSelectorOptions = []selectorOption{
 		{Label: "gemini-2.5-pro", Value: "gemini-2.5-pro"},
 		{Label: "gemini-2.5-flash", Value: "gemini-2.5-flash"},
+		{Label: "gemini-3-pro-preview", Value: "gemini-3-pro-preview"},
 	}
 
 	codexConfigBaseURLRegex   = regexp.MustCompile(`base_url\s*=\s*"([^"]+)"`)
@@ -688,22 +691,33 @@ func (m *Model) initForm(provider *config.Provider) {
 	} else if m.copyFromProvider != nil {
 		m.inputs[0].SetValue("")
 
-		token := config.ExtractTokenFromProvider(m.copyFromProvider)
-		baseURL := config.ExtractBaseURLFromProvider(m.copyFromProvider)
-		modelValue := config.ExtractModelFromProvider(m.copyFromProvider)
-		var extraValue string
-		if m.isDefaultSonnetFieldVisible() {
-			extraValue = config.ExtractDefaultSonnetModelFromProvider(m.copyFromProvider)
-		} else if m.isCodexReasoningFieldVisible() {
-			extraValue = config.ExtractCodexReasoningFromProvider(m.copyFromProvider)
-		}
+		if m.currentApp == "gemini" {
+			// Gemini 特殊处理：字段映射为 [Name, API Key, Base URL, Model]
+			baseURL, apiKey, model := config.ExtractGeminiConfigFromProvider(m.copyFromProvider)
+			m.inputs[1].SetValue(apiKey)
+			m.inputs[2].SetValue(baseURL)
+			m.inputs[3].SetValue(model)
+		} else {
+			// Claude/Codex 标准处理
+			token := config.ExtractTokenFromProvider(m.copyFromProvider)
+			baseURL := config.ExtractBaseURLFromProvider(m.copyFromProvider)
+			modelValue := config.ExtractModelFromProvider(m.copyFromProvider)
+			var extraValue string
+			if m.isDefaultSonnetFieldVisible() {
+				extraValue = config.ExtractDefaultSonnetModelFromProvider(m.copyFromProvider)
+			} else if m.isCodexReasoningFieldVisible() {
+				extraValue = config.ExtractCodexReasoningFromProvider(m.copyFromProvider)
+			}
 
-		m.inputs[1].SetValue(token)
-		m.inputs[2].SetValue(baseURL)
-		m.inputs[3].SetValue(m.copyFromProvider.WebsiteURL)
-		m.inputs[4].SetValue(modelValue)
-		if len(m.inputs) > 5 {
-			m.inputs[5].SetValue(extraValue)
+			m.inputs[1].SetValue(token)
+			m.inputs[2].SetValue(baseURL)
+			m.inputs[3].SetValue(m.copyFromProvider.WebsiteURL)
+			if fieldCount > 4 {
+				m.inputs[4].SetValue(modelValue)
+			}
+			if len(m.inputs) > 5 {
+				m.inputs[5].SetValue(extraValue)
+			}
 		}
 
 		m.copyFromProvider = nil
