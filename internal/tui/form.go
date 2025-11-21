@@ -45,6 +45,7 @@ var (
 		{Label: "low", Value: "low"},
 		{Label: "medium", Value: "medium"},
 		{Label: "high", Value: "high"},
+		{Label: "xhigh", Value: "xhigh"},
 	}
 
 	geminiModelSelectorOptions = []selectorOption{
@@ -641,7 +642,7 @@ func (m *Model) initForm(provider *config.Provider) {
 		m.inputs[5].Width = 55
 	} else if m.isCodexReasoningFieldVisible() {
 		m.inputs[5] = textinput.New()
-		m.inputs[5].Placeholder = "minimal/low/medium/high"
+		m.inputs[5].Placeholder = "minimal/low/medium/high/xhigh"
 		m.inputs[5].CharLimit = 100
 		m.inputs[5].Width = 55
 	}

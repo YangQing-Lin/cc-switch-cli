@@ -25,4 +25,4 @@ Never commit personal Claude tokens; rely on local config files under `~/.config
 - After making code changes but before compiling, always run the following commands:
   - `go fmt ./...` to format the entire project
   - `go test ./...` to run all unit tests
-  - `go build` for compilation testing
+  - `go build -o ccs` for compilation testing
