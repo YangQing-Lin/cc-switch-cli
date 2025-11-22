@@ -58,3 +58,4 @@ ccs
 # Go 缓存目录（Codex 自动生成）
 .gocache/
 .gomodcache/
+.cache/
