@@ -84,84 +84,6 @@ go vet ./...
    - 顶层键为应用名（claude、codex）
    - 自动迁移旧版本配置格式
 
-### 目录结构
-
-```
-cc-switch-cli/
-├── main.go                    # 入口文件
-├── cmd/                       # 命令层
-│   ├── root.go               # 根命令（TUI/切换）
-│   ├── config.go             # config 子命令容器
-│   ├── add.go                # 添加配置
-│   ├── delete.go             # 删除配置
-│   ├── update.go             # 更新配置
-│   ├── show.go               # 显示配置详情
-│   ├── export.go             # 导出配置
-│   ├── import.go             # 导入配置
-│   ├── backup.go             # 备份配置
-│   ├── restore.go            # 恢复配置
-│   ├── check.go              # 检查配置
-│   ├── migrate.go            # 迁移配置
-│   ├── validate.go           # 验证配置
-│   ├── version.go            # 版本信息
-│   ├── codex.go              # codex 子命令容器
-│   ├── codex_add.go          # Codex 添加
-│   ├── codex_delete.go       # Codex 删除
-│   ├── codex_switch.go       # Codex 切换
-│   ├── ui.go                 # TUI 命令
-│   └── settings.go           # 设置管理
-├── internal/                  # 内部包
-│   ├── config/               # 配置管理
-│   │   ├── types.go          # 数据结构定义
-│   │   └── config.go         # 核心逻辑
-│   ├── i18n/                 # 国际化
-│   │   └── i18n.go           # 语言切换
-│   ├── tui/                  # 交互式界面
-│   │   ├── tui.go            # Bubble Tea 模型
-│   │   └── styles.go         # 样式定义
-│   ├── backup/               # 备份管理
-│   │   └── backup.go         # 备份/恢复逻辑
-│   ├── portable/             # 便携版支持
-│   │   └── portable.go       # 便携模式检测
-│   ├── vscode/               # VSCode 集成
-│   │   └── vscode.go         # VSCode/Cursor 检测
-│   ├── settings/             # 设置管理
-│   │   └── settings.go       # 应用设置
-│   ├── version/              # 版本管理
-│   │   └── version.go        # 版本信息
-│   └── utils/                # 工具函数
-│       └── file.go           # 文件操作
-└── test/                     # 测试
-    └── integration/          # 集成测试
-        └── basic_test.go
-```
-
-### 关键数据结构
-
-```go
-// 多应用配置（顶层）
-type MultiAppConfig struct {
-    Version int                        // 配置版本（2）
-    Apps    map[string]ProviderManager // 应用名 -> 供应商管理器
-}
-
-// 单应用的供应商管理器
-type ProviderManager struct {
-    Providers map[string]Provider // ID -> Provider
-    Current   string              // 当前激活的 Provider ID
-}
-
-// 供应商配置
-type Provider struct {
-    ID             string                 // 唯一标识
-    Name           string                 // 显示名称
-    SettingsConfig map[string]interface{} // 完整配置 JSON
-    WebsiteURL     string                 // 网站 URL
-    Category       string                 // 分类标签
-    CreatedAt      int64                  // 创建时间（毫秒）
-}
-```
-
 ### 配置切换流程
 
 切换配置时的两步流程（`SwitchProviderForApp`）：
@@ -221,10 +143,7 @@ wire_api = "responses"
 
 ### 重要实现细节
 
-1. **配置迁移**: 自动检测并迁移 v1 和 v2-old 格式到 v2
-2. **回滚机制**: 写入失败时自动恢复 `.rollback` 备份
 3. **原子写入**: 使用临时文件 + 重命名确保原子性
-4. **损坏恢复**: 配置文件损坏时自动备份并创建默认配置
 5. **便携模式**: 检测 `portable.json` 标记文件，使用程序所在目录存储配置
 6. **预填充功能**: 仅在无任何配置时，TUI 添加配置界面会从 `~/.claude/settings.json` 预填充 Token/BaseURL/Model 并显示提示
 

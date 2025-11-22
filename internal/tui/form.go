@@ -64,63 +64,59 @@ func (m Model) handleFormKeys(msg tea.KeyMsg) (bool, tea.Model, tea.Cmd) {
 	// Debug: 记录按键
 	keyStr := msg.String()
 
-	if m.isSelectorField(m.focusIndex) {
+	// 处理选择器激活时的特殊键
+	if m.modelSelectorActive {
 		switch keyStr {
-		case "right":
-			if !m.modelSelectorActive {
-				options := m.selectorOptions(m.focusIndex)
-				if len(options) == 0 {
-					return false, m, nil
-				}
-				m.modelSelectorActive = true
-				currentValue := m.inputs[m.focusIndex].Value()
-				idx := findSelectorOptionIndex(options, currentValue)
-				if idx < 0 {
-					idx = 0
-				}
-				m.modelSelectorCursor = idx
-				m.err = nil
-				m.message = "DEBUG: 右键已处理,选择器已激活"
-				return true, m, nil
-			}
-		case "left":
-			if m.modelSelectorActive {
-				m.modelSelectorActive = false
-				return true, m, nil
-			}
 		case "up":
-			if m.modelSelectorActive {
-				options := m.selectorOptions(m.focusIndex)
-				if len(options) == 0 {
-					return true, m, nil
-				}
-				if m.modelSelectorCursor > 0 {
-					m.modelSelectorCursor--
-				}
+			options := m.selectorOptions(m.focusIndex)
+			if len(options) == 0 {
 				return true, m, nil
 			}
+			if m.modelSelectorCursor > 0 {
+				m.modelSelectorCursor--
+			}
+			return true, m, nil
 		case "down":
-			if m.modelSelectorActive {
-				options := m.selectorOptions(m.focusIndex)
-				if len(options) == 0 {
-					return true, m, nil
-				}
-				if m.modelSelectorCursor < len(options)-1 {
-					m.modelSelectorCursor++
-				}
+			options := m.selectorOptions(m.focusIndex)
+			if len(options) == 0 {
 				return true, m, nil
 			}
+			if m.modelSelectorCursor < len(options)-1 {
+				m.modelSelectorCursor++
+			}
+			return true, m, nil
 		case "enter":
-			if m.modelSelectorActive {
-				options := m.selectorOptions(m.focusIndex)
-				if len(options) > 0 {
-					selected := options[m.modelSelectorCursor]
-					m.inputs[m.focusIndex].SetValue(selected.Value)
-				}
-				m.modelSelectorActive = false
-				return true, m, nil
+			options := m.selectorOptions(m.focusIndex)
+			if len(options) > 0 {
+				selected := options[m.modelSelectorCursor]
+				m.inputs[m.focusIndex].SetValue(selected.Value)
 			}
+			m.modelSelectorActive = false
+			return true, m, nil
+		case "esc", " ":
+			// ESC 或 Space 都可以关闭选择器
+			m.modelSelectorActive = false
+			return true, m, nil
 		}
+	}
+
+	// 处理选择器字段的激活（Space 键）
+	if m.isSelectorField(m.focusIndex) && keyStr == " " && !m.modelSelectorActive {
+		options := m.selectorOptions(m.focusIndex)
+		if len(options) == 0 {
+			// 没有选项时，让 Space 键正常输入空格
+			return false, m, nil
+		}
+		m.modelSelectorActive = true
+		currentValue := m.inputs[m.focusIndex].Value()
+		idx := findSelectorOptionIndex(options, currentValue)
+		if idx < 0 {
+			idx = 0
+		}
+		m.modelSelectorCursor = idx
+		m.err = nil
+		m.message = "选择器已激活，使用方向键选择，Enter确认"
+		return true, m, nil
 	}
 
 	switch msg.String() {
@@ -200,6 +196,13 @@ func (m Model) handleFormKeys(msg tea.KeyMsg) (bool, tea.Model, tea.Cmd) {
 		if !m.modelSelectorActive {
 			m.submitForm()
 			return true, m, nil
+		}
+	case "left", "right":
+		// 让方向键传递给当前输入框，用于移动光标
+		if m.focusIndex < len(m.inputs) {
+			var cmd tea.Cmd
+			m.inputs[m.focusIndex], cmd = m.inputs[m.focusIndex].Update(msg)
+			return true, m, cmd
 		}
 	}
 	return false, m, nil
@@ -482,7 +485,7 @@ func (m Model) viewForm() string {
 	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#8E8E93"))
 	helpText := "Tab: 下一项 • Shift+Tab: 上一项"
 	if m.isSelectorField(m.focusIndex) {
-		helpText = "→: 显示模型选项 • ←: 隐藏模型选项 • 可直接输入自定义内容"
+		helpText = "Space: 切换选项列表 • 可直接输入自定义内容"
 	}
 	s.WriteString(helpStyle.Render(helpText))
 
@@ -517,7 +520,7 @@ func (m Model) viewForm() string {
 		selectorContent.WriteString("\n")
 		selectorHelp := lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#8E8E93")).
-			Render("↑/↓: 选择 • Enter: 确认 • ESC/←: 取消")
+			Render("↑/↓: 选择 • Enter: 确认 • Space/ESC: 取消")
 		selectorContent.WriteString(selectorHelp)
 
 		selectorPanel := lipgloss.NewStyle().
