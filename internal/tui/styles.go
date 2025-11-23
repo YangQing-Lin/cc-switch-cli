@@ -126,6 +126,10 @@ var (
 		"third_party": lipgloss.Color("#AF52DE"),
 		"custom":      subtleColor,
 	}
+
+	// 输入框焦点样式
+	focusedStyle = lipgloss.NewStyle().Foreground(primaryColor)
+	noStyle      = lipgloss.NewStyle()
 )
 
 // GetCategoryBadge 根据分类返回带样式的徽章

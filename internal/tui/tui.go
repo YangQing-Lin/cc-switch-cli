@@ -85,6 +85,19 @@ type Model struct {
 
 	// API Token 显示状态
 	apiTokenVisible bool
+
+	// MCP 管理相关字段
+	mcpServers      []config.McpServer // MCP 服务器列表
+	mcpCursor       int                // MCP 列表光标
+	mcpMode         string             // MCP 子模式: "list", "add", "edit", "delete", "apps_toggle", "preset"
+	selectedMcp     *config.McpServer  // 当前选中的 MCP 服务器
+	mcpInputs       []textinput.Model  // MCP 表单输入框
+	mcpFocusIndex   int                // MCP 表单焦点索引
+	mcpConnType     string             // 连接类型: "stdio", "http", "sse"
+	mcpAppsToggle   config.McpApps     // 应用多选状态
+	mcpAppsCursor   int                // 应用多选光标 (0=Claude, 1=Codex, 2=Gemini)
+	mcpPresets      []config.McpServer // MCP 预设列表
+	mcpPresetCursor int                // 预设列表光标
 }
 
 // tickMsg is sent on every tick for config refresh
@@ -146,6 +159,10 @@ func (m *Model) refreshTemplates() {
 	}
 	allTemplates := m.templateManager.ListTemplates(m.currentTemplateCategory())
 	m.templates = allTemplates
+}
+
+func (m *Model) refreshMcpServers() {
+	m.mcpServers = m.manager.ListMcpServers()
 }
 
 func (m Model) currentTemplateCategory() string {
@@ -317,6 +334,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "delete_confirm":
 				return m.handleDeleteConfirmKeys(msg)
 			}
+		case "mcp_manager":
+			switch m.mcpMode {
+			case "list":
+				return m.handleMcpListKeys(msg)
+			case "add", "edit":
+				handled, newModel, cmd := m.handleMcpFormKeys(msg)
+				if handled {
+					return newModel, cmd
+				}
+				return m.updateMcpInputs(msg)
+			case "delete":
+				return m.handleMcpDeleteKeys(msg)
+			case "apps_toggle":
+				return m.handleMcpAppsToggleKeys(msg)
+			case "preset":
+				return m.handleMcpPresetKeys(msg)
+			}
 		}
 	}
 
@@ -351,6 +385,19 @@ func (m Model) View() string {
 			return m.viewTemplatePreview()
 		case "delete_confirm":
 			return m.viewTemplateDelete()
+		}
+	case "mcp_manager":
+		switch m.mcpMode {
+		case "list":
+			return m.viewMcpList()
+		case "add", "edit":
+			return m.viewMcpForm()
+		case "delete":
+			return m.viewMcpDelete()
+		case "apps_toggle":
+			return m.viewMcpAppsToggle()
+		case "preset":
+			return m.viewMcpPreset()
 		}
 	}
 	return ""
@@ -587,6 +634,14 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.message = ""
 			m.err = nil
 		}
+	case "M":
+		// MCP manager
+		m.mode = "mcp_manager"
+		m.mcpMode = "list"
+		m.refreshMcpServers()
+		m.mcpCursor = 0
+		m.message = ""
+		m.err = nil
 	case "u":
 		// Check for updates
 		m.message = "正在检查更新..."
@@ -794,6 +849,7 @@ func (m Model) viewList() string {
 		"b: 备份",
 		"l: 备份列表",
 		"m: 模板管理",
+		"M: MCP管理",
 		"t: 切换应用",
 		"c: Claude",
 		"x: Codex",

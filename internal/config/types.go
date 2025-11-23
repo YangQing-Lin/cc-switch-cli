@@ -38,8 +38,9 @@ type ProviderManager struct {
 // MultiAppConfig 根配置文件结构（v2 格式，与 cc-switch 完全一致）
 // 注意：v2 格式将 apps 展平到顶层，而不是嵌套在 "apps" 键下
 type MultiAppConfig struct {
-	Version int                        `json:"version"` // 配置版本（当前为 2）
-	Apps    map[string]ProviderManager `json:"-"`       // 应用名称 -> ProviderManager (展平到顶层)
+	Version int                        `json:"version"`       // 配置版本（当前为 2）
+	Apps    map[string]ProviderManager `json:"-"`             // 应用名称 -> ProviderManager (展平到顶层)
+	Mcp     *McpRoot                   `json:"mcp,omitempty"` // MCP 配置
 }
 
 // OldMultiAppConfig 旧版配置文件结构（v2-old 格式，apps 嵌套在 "apps" 键下）
@@ -57,6 +58,11 @@ func (c *MultiAppConfig) MarshalJSON() ([]byte, error) {
 	// 将 Apps map 中的每个应用展平到顶层
 	for appName, appManager := range c.Apps {
 		result[appName] = appManager
+	}
+
+	// 添加 MCP 配置
+	if c.Mcp != nil {
+		result["mcp"] = c.Mcp
 	}
 
 	return json.Marshal(result)
@@ -77,15 +83,25 @@ func (c *MultiAppConfig) UnmarshalJSON(data []byte) error {
 		}
 	}
 
+	// 提取 MCP 配置
+	if mcpData, ok := raw["mcp"]; ok {
+		var mcpRoot McpRoot
+		if err := json.Unmarshal(mcpData, &mcpRoot); err != nil {
+			return err
+		}
+		c.Mcp = &mcpRoot
+	}
+
 	// 初始化 Apps map
 	c.Apps = make(map[string]ProviderManager)
 
 	// 已知的应用类型（非应用字段）
 	knownFields := map[string]bool{
 		"version": true,
+		"mcp":     true,
 	}
 
-	// 提取所有应用配置（除了 version 之外的字段都视为应用）
+	// 提取所有应用配置（除了 version 和 mcp 之外的字段都视为应用）
 	for key, rawData := range raw {
 		if !knownFields[key] {
 			var manager ProviderManager
@@ -201,6 +217,30 @@ type GeminiSettings struct {
 	Security   GeminiSecurity         `json:"security"`
 	MCPServers map[string]interface{} `json:"mcpServers,omitempty"`
 	Extra      map[string]interface{} `json:"-"` // 保存未知字段
+}
+
+// McpApps MCP 应用启用状态
+type McpApps struct {
+	Claude bool `json:"claude"`
+	Codex  bool `json:"codex"`
+	Gemini bool `json:"gemini"`
+}
+
+// McpServer MCP 服务器定义
+type McpServer struct {
+	ID          string                 `json:"id"`
+	Name        string                 `json:"name"`
+	Server      map[string]interface{} `json:"server"` // 连接配置（type, command, args, url 等）
+	Apps        McpApps                `json:"apps"`
+	Description string                 `json:"description,omitempty"`
+	Homepage    string                 `json:"homepage,omitempty"`
+	Docs        string                 `json:"docs,omitempty"`
+	Tags        []string               `json:"tags,omitempty"`
+}
+
+// McpRoot MCP 根配置
+type McpRoot struct {
+	Servers map[string]McpServer `json:"servers"` // id -> McpServer
 }
 
 // UnmarshalJSON 自定义反序列化，保存未知字段
