@@ -298,24 +298,35 @@ func (m *Model) submitForm() {
 			m.err = errors.New(i18n.T("error.name_required"))
 			return
 		}
-		if apiKey == "" {
-			m.err = errors.New("API Key 不能为空")
-			return
+
+		// 检测认证类型：如果名称包含 "google" 或 "oauth"，使用 OAuth
+		authType := config.GeminiAuthAPIKey
+		nameLower := strings.ToLower(name)
+		if strings.Contains(nameLower, "google") && !strings.Contains(nameLower, "gemini") {
+			authType = config.GeminiAuthOAuth
 		}
-		if baseURL == "" {
-			m.err = errors.New(i18n.T("error.base_url_required"))
-			return
-		}
-		if model == "" {
-			m.err = errors.New("模型不能为空")
-			return
+
+		// API Key 模式下需要验证必填字段
+		if authType == config.GeminiAuthAPIKey {
+			if apiKey == "" {
+				m.err = errors.New("API Key 不能为空")
+				return
+			}
+			if baseURL == "" {
+				m.err = errors.New(i18n.T("error.base_url_required"))
+				return
+			}
+			if model == "" {
+				m.err = errors.New("模型不能为空")
+				return
+			}
 		}
 
 		var err error
 		if m.mode == "edit" {
-			err = m.manager.UpdateGeminiProvider(m.editName, name, baseURL, apiKey, model)
+			err = m.manager.UpdateGeminiProvider(m.editName, name, baseURL, apiKey, model, authType)
 		} else {
-			err = m.manager.AddGeminiProvider(name, baseURL, apiKey, model)
+			err = m.manager.AddGeminiProvider(name, baseURL, apiKey, model, authType)
 		}
 
 		if err != nil {
@@ -666,7 +677,7 @@ func (m *Model) initForm(provider *config.Provider) {
 
 		if m.currentApp == "gemini" {
 			// Gemini 特殊处理：字段映射为 [Name, API Key, Base URL, Model]
-			baseURL, apiKey, model := config.ExtractGeminiConfigFromProvider(provider)
+			baseURL, apiKey, model, _ := config.ExtractGeminiConfigFromProvider(provider)
 			m.inputs[1].SetValue(apiKey)
 			m.inputs[2].SetValue(baseURL)
 			m.inputs[3].SetValue(model)
@@ -697,7 +708,7 @@ func (m *Model) initForm(provider *config.Provider) {
 
 		if m.currentApp == "gemini" {
 			// Gemini 特殊处理：字段映射为 [Name, API Key, Base URL, Model]
-			baseURL, apiKey, model := config.ExtractGeminiConfigFromProvider(m.copyFromProvider)
+			baseURL, apiKey, model, _ := config.ExtractGeminiConfigFromProvider(m.copyFromProvider)
 			m.inputs[1].SetValue(apiKey)
 			m.inputs[2].SetValue(baseURL)
 			m.inputs[3].SetValue(model)

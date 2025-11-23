@@ -12,12 +12,12 @@ var geminiSwitchCmd = &cobra.Command{
 	Short: "切换到指定的 Gemini 配置",
 	Long: `切换到指定的 Gemini CLI 配置。
 
-注意: Gemini 配置仅更新内部选中状态，不会写入任何配置文件。
-需要使用 'eval $(ccs gc)' 加载环境变量到当前 shell。
+配置将自动写入 ~/.gemini/.env 和 ~/.gemini/settings.json 文件。
+Gemini CLI 会自动检测配置变化，无需重启或手动加载环境变量。
 
 示例:
   ccs gemini switch mygemini   # 切换到 mygemini 配置
-  eval $(ccs gc)               # 加载切换后的配置到环境变量`,
+  ccs gemini switch google     # 切换到 google 配置（OAuth 模式）`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		configName := args[0]
@@ -30,26 +30,33 @@ var geminiSwitchCmd = &cobra.Command{
 		// 检查配置是否存在
 		provider, err := manager.GetProviderForApp("gemini", configName)
 		if err != nil {
-			return fmt.Errorf("配置不存在: %s", configName)
+			return fmt.Errorf("获取配置失败: %w", err)
 		}
 
-		// 执行切换（仅更新 Current 字段，不写文件）
+		// 执行切换（写入 .env 和 settings.json）
 		if err := manager.SwitchProviderForApp("gemini", configName); err != nil {
 			return fmt.Errorf("切换配置失败: %w", err)
 		}
 
 		// 提取配置信息显示
-		baseURL, apiKey, model := config.ExtractGeminiConfigFromProvider(provider)
+		baseURL, apiKey, model, authType := config.ExtractGeminiConfigFromProvider(provider)
 
 		fmt.Printf("✓ 已切换到 Gemini 配置: %s\n", configName)
+		if authType == config.GeminiAuthOAuth {
+			fmt.Printf("  认证类型: OAuth (Google 官方)\n")
+		} else {
+			fmt.Printf("  认证类型: API Key\n")
+			fmt.Printf("  API Key: %s\n", config.MaskToken(apiKey))
+		}
 		fmt.Printf("  Base URL: %s\n", baseURL)
-		fmt.Printf("  API Key: %s\n", config.MaskToken(apiKey))
 		if model != "" {
 			fmt.Printf("  Model: %s\n", model)
 		}
 
-		fmt.Printf("\n运行以下命令加载环境变量:\n")
-		fmt.Printf("  %s\n", config.GetEnvCommandExample())
+		fmt.Printf("\n配置已写入:\n")
+		fmt.Printf("  ~/.gemini/.env\n")
+		fmt.Printf("  ~/.gemini/settings.json\n")
+		fmt.Printf("\nGemini CLI 会自动检测配置变化，无需重启\n")
 
 		return nil
 	},

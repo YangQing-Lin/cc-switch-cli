@@ -177,3 +177,78 @@ func (c *ClaudeSettings) MarshalJSON() ([]byte, error) {
 type CodexAuthJson struct {
 	OpenAIAPIKey string `json:"OPENAI_API_KEY"`
 }
+
+// GeminiAuthType Gemini 认证类型
+type GeminiAuthType string
+
+const (
+	GeminiAuthAPIKey GeminiAuthType = "gemini-api-key" // API Key 认证
+	GeminiAuthOAuth  GeminiAuthType = "oauth-personal" // OAuth 认证
+)
+
+// GeminiSecurityAuth Gemini 认证配置
+type GeminiSecurityAuth struct {
+	SelectedType GeminiAuthType `json:"selectedType"`
+}
+
+// GeminiSecurity Gemini 安全配置
+type GeminiSecurity struct {
+	Auth GeminiSecurityAuth `json:"auth"`
+}
+
+// GeminiSettings Gemini settings.json 文件结构
+type GeminiSettings struct {
+	Security   GeminiSecurity         `json:"security"`
+	MCPServers map[string]interface{} `json:"mcpServers,omitempty"`
+	Extra      map[string]interface{} `json:"-"` // 保存未知字段
+}
+
+// UnmarshalJSON 自定义反序列化，保存未知字段
+func (g *GeminiSettings) UnmarshalJSON(data []byte) error {
+	// 1. 先解析到已知结构
+	type Alias GeminiSettings
+	aux := &struct{ *Alias }{Alias: (*Alias)(g)}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	// 2. 解析到 map 获取所有字段
+	var allFields map[string]interface{}
+	if err := json.Unmarshal(data, &allFields); err != nil {
+		return err
+	}
+
+	// 3. 保存未知字段
+	g.Extra = make(map[string]interface{})
+	knownFields := map[string]bool{
+		"security": true, "mcpServers": true,
+	}
+	for k, v := range allFields {
+		if !knownFields[k] {
+			g.Extra[k] = v
+		}
+	}
+
+	return nil
+}
+
+// MarshalJSON 自定义序列化，合并未知字段
+func (g *GeminiSettings) MarshalJSON() ([]byte, error) {
+	result := make(map[string]interface{})
+
+	// 1. 先添加未知字段
+	for k, v := range g.Extra {
+		result[k] = v
+	}
+
+	// 2. 添加已知字段（覆盖同名字段）
+	type Alias GeminiSettings
+	data, _ := json.Marshal((*Alias)(g))
+	var tempMap map[string]interface{}
+	json.Unmarshal(data, &tempMap)
+	for k, v := range tempMap {
+		result[k] = v
+	}
+
+	return json.Marshal(result)
+}
