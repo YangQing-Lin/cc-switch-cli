@@ -44,12 +44,20 @@ func (m Model) handleTargetSelectKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	switch key {
 	case "up", "k":
-		if m.targetSelectCursor > 0 {
-			m.targetSelectCursor--
+		if len(targets) > 0 {
+			if m.targetSelectCursor > 0 {
+				m.targetSelectCursor--
+			} else {
+				m.targetSelectCursor = len(targets) - 1
+			}
 		}
 	case "down", "j":
-		if m.targetSelectCursor < len(targets)-1 {
-			m.targetSelectCursor++
+		if len(targets) > 0 {
+			if m.targetSelectCursor < len(targets)-1 {
+				m.targetSelectCursor++
+			} else {
+				m.targetSelectCursor = 0
+			}
 		}
 	case "enter":
 		selectedTarget := targets[m.targetSelectCursor]

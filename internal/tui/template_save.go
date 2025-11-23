@@ -51,17 +51,41 @@ func (m Model) handleSourceSelectKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	switch key {
 	case "up", "k":
+		found := false
+		// 向上查找存在的文件
 		for i := m.sourceSelectCursor - 1; i >= 0; i-- {
 			if _, err := os.Stat(targets[i].Path); err == nil {
 				m.sourceSelectCursor = i
+				found = true
 				break
 			}
 		}
+		// 如果没找到，循环到底部继续查找
+		if !found && len(targets) > 0 {
+			for i := len(targets) - 1; i > m.sourceSelectCursor; i-- {
+				if _, err := os.Stat(targets[i].Path); err == nil {
+					m.sourceSelectCursor = i
+					break
+				}
+			}
+		}
 	case "down", "j":
+		found := false
+		// 向下查找存在的文件
 		for i := m.sourceSelectCursor + 1; i < len(targets); i++ {
 			if _, err := os.Stat(targets[i].Path); err == nil {
 				m.sourceSelectCursor = i
+				found = true
 				break
+			}
+		}
+		// 如果没找到，循环到顶部继续查找
+		if !found && len(targets) > 0 {
+			for i := 0; i < m.sourceSelectCursor; i++ {
+				if _, err := os.Stat(targets[i].Path); err == nil {
+					m.sourceSelectCursor = i
+					break
+				}
 			}
 		}
 	case "enter":

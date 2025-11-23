@@ -17,12 +17,20 @@ func (m Model) handleTemplateListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.message = ""
 		m.err = nil
 	case "up", "k":
-		if m.templateCursor > 0 {
-			m.templateCursor--
+		if len(m.templates) > 0 {
+			if m.templateCursor > 0 {
+				m.templateCursor--
+			} else {
+				m.templateCursor = len(m.templates) - 1
+			}
 		}
 	case "down", "j":
-		if m.templateCursor < len(m.templates)-1 {
-			m.templateCursor++
+		if len(m.templates) > 0 {
+			if m.templateCursor < len(m.templates)-1 {
+				m.templateCursor++
+			} else {
+				m.templateCursor = 0
+			}
 		}
 	case "enter":
 		if len(m.templates) > 0 {

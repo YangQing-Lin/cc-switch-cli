@@ -362,12 +362,20 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "q", "ctrl+c":
 		return m, tea.Quit
 	case "up", "k":
-		if m.cursor > 0 {
-			m.cursor--
+		if len(m.providers) > 0 {
+			if m.cursor > 0 {
+				m.cursor--
+			} else {
+				m.cursor = len(m.providers) - 1
+			}
 		}
 	case "down", "j":
-		if m.cursor < len(m.providers)-1 {
-			m.cursor++
+		if len(m.providers) > 0 {
+			if m.cursor < len(m.providers)-1 {
+				m.cursor++
+			} else {
+				m.cursor = 0
+			}
 		}
 	case "=":
 		if len(m.providers) == 0 {
@@ -657,10 +665,14 @@ func (m Model) handleAppSelectKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "up", "k":
 		if m.appCursor > 0 {
 			m.appCursor--
+		} else {
+			m.appCursor = 2 // 循环到 Gemini
 		}
 	case "down", "j":
 		if m.appCursor < 2 { // 现在有 3 个选项：Claude(0), Codex(1), Gemini(2)
 			m.appCursor++
+		} else {
+			m.appCursor = 0 // 循环到 Claude
 		}
 	case "enter":
 		switch m.appCursor {
@@ -948,12 +960,20 @@ func (m Model) handleBackupListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.message = ""
 		m.err = nil
 	case "up", "k":
-		if m.backupCursor > 0 {
-			m.backupCursor--
+		if len(m.backupList) > 0 {
+			if m.backupCursor > 0 {
+				m.backupCursor--
+			} else {
+				m.backupCursor = len(m.backupList) - 1
+			}
 		}
 	case "down", "j":
-		if m.backupCursor < len(m.backupList)-1 {
-			m.backupCursor++
+		if len(m.backupList) > 0 {
+			if m.backupCursor < len(m.backupList)-1 {
+				m.backupCursor++
+			} else {
+				m.backupCursor = 0
+			}
 		}
 	case "enter":
 		if len(m.backupList) > 0 {
