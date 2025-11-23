@@ -7,7 +7,10 @@
       "Skill(codex)",
       "Bash(uv run:*)"
     ],
-    "deny": [],
+    "deny": [
+      "Bash(rm:*)",
+      "Bash(rm -rf:*)"
+    ],
     "ask": []
   }
 }
