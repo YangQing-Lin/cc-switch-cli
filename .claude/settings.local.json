@@ -11,6 +11,8 @@
     "deny": [],
     "ask": [
       "Bash(rm:*)",
+      "Bash(rm -r:*)",
+      "Bash(rm -f:*)",
       "Bash(rm -rf:*)"
     ]
   }
