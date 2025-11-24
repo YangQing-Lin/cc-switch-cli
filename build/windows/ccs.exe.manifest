@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0" xmlns:asmv3="urn:schemas-microsoft-com:asm.v3">
   <assemblyIdentity
     version="1.0.0.0"
     processorArchitecture="*"
@@ -22,4 +22,10 @@
       <supportedOS Id="{c2f03a33-21f5-47fa-b4bb-156362a2f239}"/>
     </application>
   </compatibility>
+  <asmv3:application>
+    <asmv3:windowsSettings>
+      <!-- Enable long path support (>260 chars) for config file operations -->
+      <asmv3:longPathAware>true</asmv3:longPathAware>
+    </asmv3:windowsSettings>
+  </asmv3:application>
 </assembly>

@@ -19,6 +19,19 @@
 - **格式**：标准 Windows RC 格式
 - **编译目标**：`.syso` 文件（Go 自动识别）
 
+### ccs.exe.manifest
+- **用途**：Windows 应用程序清单文件
+- **内容**：
+  - 执行级别声明（`asInvoker` - 无需管理员权限）
+  - Windows 10/11 兼容性声明
+  - 长路径支持（`longPathAware` - 支持超过 260 字符的文件路径）
+- **格式**：标准 Windows Application Manifest XML
+- **作用**：
+  - 声明应用权限和兼容性
+  - 避免 UAC 提示
+  - 支持操作深层目录结构的配置文件
+- **注意**：此文件必须提交到 Git，`goversioninfo` 在 CI 环境中需要引用它
+
 ### generate_syso.sh
 - **用途**：自动生成 Windows 资源对象文件（.syso）
 - **执行时机**：GoReleaser 构建前（在 `.goreleaser.yml` 的 `before.hooks` 中调用）

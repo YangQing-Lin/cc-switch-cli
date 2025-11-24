@@ -4,8 +4,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT_DIR"
 
-BUILD_DIR="$ROOT_DIR/build"
-WINDOWS_RESOURCE_SCRIPT="$BUILD_DIR/windows/generate_syso.sh"
+BUILD_DIR="$ROOT_DIR/bin"
+WINDOWS_RESOURCE_SCRIPT="$ROOT_DIR/build/windows/generate_syso.sh"
 
 OS_LIST=(linux darwin windows)
 ARCH_LIST=(amd64 arm64)
