@@ -37,6 +37,8 @@ go build -o ccs
 
 从[发布页面](https://github.com/YangQing-Lin/cc-switch-cli/releases)下载适合您操作系统的预编译二进制文件。
 
+- Windows：提供单文件 `ccs-windows-amd64.exe`，也提供用户级安装的 `ccs-<版本>-Setup.exe`（Inno Setup 打包，创建开始菜单快捷方式，可选桌面图标，并减少杀毒/SmartScreen 误报）。
+
 ### 配置环境变量
 
 为了在任何目录下都能使用 `ccs` 命令,需要将其添加到系统环境变量:

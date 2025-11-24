@@ -5,12 +5,13 @@
       "Bash(go test:*)",
       "Bash(go build:*)",
       "Skill(codex)",
-      "Bash(uv run:*)"
+      "Bash(uv run:*)",
+      "Bash(go mod tidy:*)"
     ],
+    "deny": [],
     "ask": [
       "Bash(rm:*)",
       "Bash(rm -rf:*)"
-    ],
-    "deny": []
+    ]
   }
 }

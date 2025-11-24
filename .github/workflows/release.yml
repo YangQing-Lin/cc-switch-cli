@@ -12,6 +12,8 @@ jobs:
   release:
     name: Build and Release
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
 
     steps:
       - name: Checkout code
@@ -19,10 +21,14 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Extract release version
+        id: meta
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.21"
+          go-version: "1.24"
 
       - name: Cache Go modules
         uses: actions/cache@v4
@@ -43,5 +49,65 @@ jobs:
           distribution: goreleaser
           version: "~> v2"
           args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  release-windows:
+    name: Build Windows Installer
+    runs-on: windows-latest
+    needs: release
+    env:
+      CCS_VERSION: ${{ needs.release.outputs.version }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: Install goversioninfo
+        shell: bash
+        run: |
+          go install github.com/josephspurrier/goversioninfo/cmd/goversioninfo@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Generate Windows resources
+        shell: bash
+        run: bash build/windows/generate_syso.sh
+
+      - name: Build Windows binary
+        shell: bash
+        run: |
+          if [[ -z "${CCS_VERSION}" ]]; then
+            echo "CCS_VERSION is not set" >&2
+            exit 1
+          fi
+          BUILD_DATE="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          GIT_COMMIT="$(git rev-parse --short HEAD)"
+          LD_FLAGS="-X github.com/YangQing-Lin/cc-switch-cli/internal/version.Version=${CCS_VERSION} -X github.com/YangQing-Lin/cc-switch-cli/internal/version.BuildDate=${BUILD_DATE} -X github.com/YangQing-Lin/cc-switch-cli/internal/version.GitCommit=${GIT_COMMIT}"
+          mkdir -p build
+          GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "$LD_FLAGS" -o build/ccs-windows-amd64.exe .
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress -y
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DMyAppVersion="$Env:CCS_VERSION" setup.iss
+
+      - name: Upload Windows artifacts to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            build/ccs-windows-amd64.exe
+            build/ccs-*-Setup.exe
+          tag_name: ${{ github.ref_name }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -34,6 +34,8 @@ go build -o ccs
 
 Download the appropriate pre-compiled binary for your operating system from the [Releases](https://github.com/YangQing-Lin/cc-switch-cli/releases) page.
 
+- Windows: ships both the standalone `ccs-windows-amd64.exe` and a per-user installer `ccs-<version>-Setup.exe` (built with Inno Setup, adds Start Menu shortcut, optional desktop icon, and tuned to reduce antivirus/SmartScreen false positives).
+
 ### Configure Environment Variables
 
 To use the `ccs` command from any directory, add it to your system's PATH:
