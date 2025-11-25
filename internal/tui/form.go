@@ -21,7 +21,17 @@ type selectorOption struct {
 }
 
 var (
-	claudeUnifiedModelSelectorOptions = []selectorOption{
+	claudePrimaryModelSelectorOptions = []selectorOption{
+		{Label: "Default (recommended)", Value: ""},
+		{Label: "Opus", Value: "opus"},
+		{Label: "Haiku", Value: "haiku"},
+		{Label: "claude-haiku-4-5-20251001", Value: "claude-haiku-4-5-20251001"},
+		{Label: "claude-sonnet-4-5-20250929", Value: "claude-sonnet-4-5-20250929"},
+		{Label: "claude-opus-4-5-20251101", Value: "claude-opus-4-5-20251101"},
+	}
+
+	claudeTierModelSelectorOptions = []selectorOption{
+		{Label: "Default (recommended)", Value: ""},
 		{Label: "claude-haiku-4-5-20251001", Value: "claude-haiku-4-5-20251001"},
 		{Label: "claude-sonnet-4-5-20250929", Value: "claude-sonnet-4-5-20250929"},
 		{Label: "claude-opus-4-5-20251101", Value: "claude-opus-4-5-20251101"},
@@ -211,13 +221,13 @@ func (m Model) selectorOptions(index int) []selectorOption {
 	case "claude":
 		switch index {
 		case 4:
-			return claudeUnifiedModelSelectorOptions
+			return claudePrimaryModelSelectorOptions
 		case 5:
-			return claudeUnifiedModelSelectorOptions
+			return claudeTierModelSelectorOptions
 		case 6:
-			return claudeUnifiedModelSelectorOptions
+			return claudeTierModelSelectorOptions
 		case 7:
-			return claudeUnifiedModelSelectorOptions
+			return claudeTierModelSelectorOptions
 		}
 	case "codex":
 		switch index {
