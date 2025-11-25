@@ -119,9 +119,12 @@ func (c *MultiAppConfig) UnmarshalJSON(data []byte) error {
 type ClaudeEnv struct {
 	AnthropicAuthToken          string `json:"ANTHROPIC_AUTH_TOKEN,omitempty"`
 	AnthropicBaseURL            string `json:"ANTHROPIC_BASE_URL,omitempty"`
+	AnthropicModel              string `json:"ANTHROPIC_MODEL,omitempty"`
+	AnthropicDefaultHaikuModel  string `json:"ANTHROPIC_DEFAULT_HAIKU_MODEL,omitempty"`
+	AnthropicDefaultSonnetModel string `json:"ANTHROPIC_DEFAULT_SONNET_MODEL,omitempty"`
+	AnthropicDefaultOpusModel   string `json:"ANTHROPIC_DEFAULT_OPUS_MODEL,omitempty"`
 	ClaudeCodeModel             string `json:"CLAUDE_CODE_MODEL,omitempty"`
 	ClaudeCodeMaxTokens         string `json:"CLAUDE_CODE_MAX_TOKENS,omitempty"`
-	AnthropicDefaultSonnetModel string `json:"ANTHROPIC_DEFAULT_SONNET_MODEL,omitempty"`
 }
 
 // ClaudePermissions Claude 权限配置

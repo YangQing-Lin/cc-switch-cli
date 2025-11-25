@@ -80,6 +80,18 @@ var showCmd = &cobra.Command{
 
 				// 显示额外的环境变量（如果有）
 				if envMap, ok := provider.SettingsConfig["env"].(map[string]interface{}); ok {
+					if model, ok := envMap["ANTHROPIC_MODEL"].(string); ok && model != "" {
+						fmt.Printf("主模型:    %s\n", model)
+					}
+					if model, ok := envMap["ANTHROPIC_DEFAULT_HAIKU_MODEL"].(string); ok && model != "" {
+						fmt.Printf("Haiku 默认模型: %s\n", model)
+					}
+					if model, ok := envMap["ANTHROPIC_DEFAULT_SONNET_MODEL"].(string); ok && model != "" {
+						fmt.Printf("Sonnet 默认模型: %s\n", model)
+					}
+					if model, ok := envMap["ANTHROPIC_DEFAULT_OPUS_MODEL"].(string); ok && model != "" {
+						fmt.Printf("Opus 默认模型: %s\n", model)
+					}
 					if model, ok := envMap["CLAUDE_CODE_MODEL"].(string); ok && model != "" {
 						fmt.Printf("Model:     %s\n", model)
 					}

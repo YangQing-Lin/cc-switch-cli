@@ -74,7 +74,9 @@ var addCmd = &cobra.Command{
 			strings.TrimSpace(baseURL),
 			category,
 			"", // claudeModel - 命令行暂不支持
+			"", // defaultHaikuModel - 命令行暂不支持
 			strings.TrimSpace(defaultSonnetModel),
+			"", // defaultOpusModel - 命令行暂不支持
 		); err != nil {
 			return fmt.Errorf("添加配置失败: %w", err)
 		}

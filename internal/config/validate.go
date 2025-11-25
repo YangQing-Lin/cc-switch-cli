@@ -109,9 +109,61 @@ func ExtractDefaultSonnetModelFromProvider(p *Provider) string {
 	return ""
 }
 
+func ExtractDefaultHaikuModelFromProvider(p *Provider) string {
+	if p == nil {
+		return ""
+	}
+
+	if envMap, ok := p.SettingsConfig["env"].(map[string]interface{}); ok {
+		if model, ok := envMap["ANTHROPIC_DEFAULT_HAIKU_MODEL"].(string); ok {
+			return model
+		}
+	}
+
+	return ""
+}
+
+func ExtractDefaultOpusModelFromProvider(p *Provider) string {
+	if p == nil {
+		return ""
+	}
+
+	if envMap, ok := p.SettingsConfig["env"].(map[string]interface{}); ok {
+		if model, ok := envMap["ANTHROPIC_DEFAULT_OPUS_MODEL"].(string); ok {
+			return model
+		}
+	}
+
+	return ""
+}
+
+func ExtractAnthropicModelFromProvider(p *Provider) string {
+	if p == nil {
+		return ""
+	}
+
+	if envMap, ok := p.SettingsConfig["env"].(map[string]interface{}); ok {
+		if model, ok := envMap["ANTHROPIC_MODEL"].(string); ok && model != "" {
+			return model
+		}
+	}
+
+	if model, ok := p.SettingsConfig["model"].(string); ok && model != "" {
+		return model
+	}
+
+	return ""
+}
+
 func ExtractModelFromProvider(p *Provider) string {
 	if p == nil {
 		return ""
+	}
+
+	if envMap, ok := p.SettingsConfig["env"].(map[string]interface{}); ok {
+		if model, ok := envMap["ANTHROPIC_MODEL"].(string); ok && model != "" {
+			return model
+		}
 	}
 
 	if model, ok := p.SettingsConfig["model"].(string); ok && model != "" {

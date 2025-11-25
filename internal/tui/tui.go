@@ -40,7 +40,7 @@ type Model struct {
 	configCorrupted     bool                // 配置文件是否损坏
 	backupList          []backup.BackupInfo // 备份列表
 	backupCursor        int                 // 备份列表光标
-	modelSelectorActive bool                // 模型选择器是否激活（Claude model 或 Default Sonnet Model）
+	modelSelectorActive bool                // 模型选择器是否激活（Claude 模型字段下拉）
 	modelSelectorCursor int                 // 模型选择器光标位置
 
 	// 模板管理相关字段
@@ -66,12 +66,7 @@ type Model struct {
 
 	// 撤销历史栈（用于清空后的回退操作）
 	undoHistory []struct {
-		name       string
-		token      string
-		baseURL    string
-		websiteURL string
-		modelValue string
-		extraValue string
+		values []string
 	}
 
 	// 复制配置相关

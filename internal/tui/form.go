@@ -21,16 +21,10 @@ type selectorOption struct {
 }
 
 var (
-	claudeModelSelectorOptions = []selectorOption{
-		{Label: "Default (recommended)", Value: ""},
-		{Label: "Opus", Value: "opus"},
-		{Label: "Opus Plan Mode", Value: "opusplan"},
-	}
-
-	claudeDefaultSonnetSelectorOptions = []selectorOption{
-		{Label: "清空", Value: ""},
+	claudeUnifiedModelSelectorOptions = []selectorOption{
+		{Label: "claude-haiku-4-5-20251001", Value: "claude-haiku-4-5-20251001"},
 		{Label: "claude-sonnet-4-5-20250929", Value: "claude-sonnet-4-5-20250929"},
-		{Label: "claude-sonnet-4-20250514", Value: "claude-sonnet-4-20250514"},
+		{Label: "claude-opus-4-5-20251101", Value: "claude-opus-4-5-20251101"},
 	}
 
 	codexModelSelectorOptions = []selectorOption{
@@ -217,9 +211,13 @@ func (m Model) selectorOptions(index int) []selectorOption {
 	case "claude":
 		switch index {
 		case 4:
-			return claudeModelSelectorOptions
+			return claudeUnifiedModelSelectorOptions
 		case 5:
-			return claudeDefaultSonnetSelectorOptions
+			return claudeUnifiedModelSelectorOptions
+		case 6:
+			return claudeUnifiedModelSelectorOptions
+		case 7:
+			return claudeUnifiedModelSelectorOptions
 		}
 	case "codex":
 		switch index {
@@ -241,10 +239,16 @@ func (m Model) selectorTitle(index int) string {
 	switch m.currentApp {
 	case "claude":
 		if index == 4 {
-			return "选择模型"
+			return "主模型"
 		}
 		if index == 5 {
-			return "预定义模型"
+			return "Haiku 默认模型"
+		}
+		if index == 6 {
+			return "Sonnet 默认模型"
+		}
+		if index == 7 {
+			return "Opus 默认模型"
 		}
 	case "codex":
 		if index == 4 {
@@ -350,13 +354,27 @@ func (m *Model) submitForm() {
 	token := m.inputs[1].Value()
 	baseURL := m.inputs[2].Value()
 	websiteURL := m.inputs[3].Value()
-	var claudeModel string
-	if len(m.inputs) > 4 {
-		claudeModel = m.inputs[4].Value()
-	}
-	var defaultSonnetModel string
-	if len(m.inputs) > 5 {
-		defaultSonnetModel = m.inputs[5].Value()
+	var claudeModel, defaultHaikuModel, defaultSonnetModel, defaultOpusModel string
+	if m.currentApp == "claude" {
+		if len(m.inputs) > 4 {
+			claudeModel = m.inputs[4].Value()
+		}
+		if len(m.inputs) > 5 {
+			defaultHaikuModel = m.inputs[5].Value()
+		}
+		if len(m.inputs) > 6 {
+			defaultSonnetModel = m.inputs[6].Value()
+		}
+		if len(m.inputs) > 7 {
+			defaultOpusModel = m.inputs[7].Value()
+		}
+	} else {
+		if len(m.inputs) > 4 {
+			claudeModel = m.inputs[4].Value()
+		}
+		if len(m.inputs) > 5 {
+			defaultSonnetModel = m.inputs[5].Value()
+		}
 	}
 
 	if name == "" {
@@ -385,9 +403,9 @@ func (m *Model) submitForm() {
 
 	var err error
 	if m.mode == "edit" {
-		err = m.manager.UpdateProviderForApp(m.currentApp, m.editName, name, websiteURL, token, baseURL, "custom", claudeModel, defaultSonnetModel)
+		err = m.manager.UpdateProviderForApp(m.currentApp, m.editName, name, websiteURL, token, baseURL, "custom", claudeModel, defaultHaikuModel, defaultSonnetModel, defaultOpusModel)
 	} else {
-		err = m.manager.AddProviderForApp(m.currentApp, name, websiteURL, token, baseURL, "custom", claudeModel, defaultSonnetModel)
+		err = m.manager.AddProviderForApp(m.currentApp, name, websiteURL, token, baseURL, "custom", claudeModel, defaultHaikuModel, defaultSonnetModel, defaultOpusModel)
 	}
 
 	if err != nil {
@@ -560,6 +578,9 @@ func (m Model) formLabels() []string {
 		return []string{"配置名称", "GEMINI_API_KEY", "GOOGLE_GEMINI_BASE_URL", "GEMINI_MODEL"}
 	}
 	base := []string{"配置名称", "API Key", "Base URL", "网站 (可选)"}
+	if m.currentApp == "claude" {
+		return append(base, "主模型", "Haiku 默认模型", "Sonnet 默认模型", "Opus 默认模型")
+	}
 	if m.currentApp == "codex" {
 		return append(base, "默认模型（必填）", "推理强度（必填）")
 	}
@@ -576,10 +597,14 @@ func (m Model) isCodexReasoningFieldVisible() bool {
 
 func (m *Model) initForm(provider *config.Provider) {
 	fieldCount := 5
-	if m.isDefaultSonnetFieldVisible() || m.isCodexReasoningFieldVisible() {
-		fieldCount = 6
-	}
-	if m.currentApp == "gemini" {
+	switch m.currentApp {
+	case "claude":
+		fieldCount = 8 // Name, Token, BaseURL, Website, 主模型, Haiku, Sonnet, Opus
+	case "codex":
+		if m.isCodexReasoningFieldVisible() {
+			fieldCount = 6
+		}
+	case "gemini":
 		fieldCount = 4 // Gemini: Name, API Key, Base URL, Model
 	}
 
@@ -638,27 +663,43 @@ func (m *Model) initForm(provider *config.Provider) {
 	}
 	m.inputs[3].Width = 55
 
-	if fieldCount > 4 {
+	switch m.currentApp {
+	case "claude":
 		m.inputs[4] = textinput.New()
-		if m.currentApp == "codex" {
-			m.inputs[4].Placeholder = "gpt-5-codex"
-		} else {
-			m.inputs[4].Placeholder = "Default (recommended)"
-		}
-		m.inputs[4].CharLimit = 100
+		m.inputs[4].Placeholder = "claude-sonnet-4-5-20250929"
+		m.inputs[4].CharLimit = 120
 		m.inputs[4].Width = 55
-	}
 
-	if m.isDefaultSonnetFieldVisible() {
 		m.inputs[5] = textinput.New()
-		m.inputs[5].Placeholder = "例如: claude-3-5-sonnet-20241022 (可选)"
-		m.inputs[5].CharLimit = 100
+		m.inputs[5].Placeholder = "claude-haiku-4-5-20251001"
+		m.inputs[5].CharLimit = 120
 		m.inputs[5].Width = 55
-	} else if m.isCodexReasoningFieldVisible() {
-		m.inputs[5] = textinput.New()
-		m.inputs[5].Placeholder = "minimal/low/medium/high/xhigh"
-		m.inputs[5].CharLimit = 100
-		m.inputs[5].Width = 55
+
+		m.inputs[6] = textinput.New()
+		m.inputs[6].Placeholder = "claude-sonnet-4-5-20250929"
+		m.inputs[6].CharLimit = 120
+		m.inputs[6].Width = 55
+
+		m.inputs[7] = textinput.New()
+		m.inputs[7].Placeholder = "claude-opus-4-5-20251101"
+		m.inputs[7].CharLimit = 120
+		m.inputs[7].Width = 55
+	case "codex":
+		if fieldCount > 4 {
+			m.inputs[4] = textinput.New()
+			m.inputs[4].Placeholder = "gpt-5-codex"
+			m.inputs[4].CharLimit = 100
+			m.inputs[4].Width = 55
+		}
+
+		if m.isCodexReasoningFieldVisible() {
+			m.inputs[5] = textinput.New()
+			m.inputs[5].Placeholder = "minimal/low/medium/high/xhigh"
+			m.inputs[5].CharLimit = 100
+			m.inputs[5].Width = 55
+		}
+	case "gemini":
+		m.inputs[3].SetValue("gemini-2.5-pro")
 	}
 
 	if m.currentApp == "codex" && fieldCount > 4 {
@@ -666,10 +707,6 @@ func (m *Model) initForm(provider *config.Provider) {
 		if len(m.inputs) > 5 {
 			m.inputs[5].SetValue("high")
 		}
-	}
-
-	if m.currentApp == "gemini" {
-		m.inputs[3].SetValue("gemini-2.5-pro")
 	}
 
 	if provider != nil {
@@ -686,21 +723,33 @@ func (m *Model) initForm(provider *config.Provider) {
 			token := config.ExtractTokenFromProvider(provider)
 			baseURL := config.ExtractBaseURLFromProvider(provider)
 			modelValue := config.ExtractModelFromProvider(provider)
-			var extraValue string
-			if m.isDefaultSonnetFieldVisible() {
-				extraValue = config.ExtractDefaultSonnetModelFromProvider(provider)
-			} else if m.isCodexReasoningFieldVisible() {
-				extraValue = config.ExtractCodexReasoningFromProvider(provider)
-			}
+			haikuModel := config.ExtractDefaultHaikuModelFromProvider(provider)
+			sonnetModel := config.ExtractDefaultSonnetModelFromProvider(provider)
+			opusModel := config.ExtractDefaultOpusModelFromProvider(provider)
 
 			m.inputs[1].SetValue(token)
 			m.inputs[2].SetValue(baseURL)
 			m.inputs[3].SetValue(provider.WebsiteURL)
-			if fieldCount > 4 {
-				m.inputs[4].SetValue(modelValue)
-			}
-			if len(m.inputs) > 5 {
-				m.inputs[5].SetValue(extraValue)
+			if m.currentApp == "claude" {
+				if len(m.inputs) > 4 {
+					m.inputs[4].SetValue(modelValue)
+				}
+				if len(m.inputs) > 5 {
+					m.inputs[5].SetValue(haikuModel)
+				}
+				if len(m.inputs) > 6 {
+					m.inputs[6].SetValue(sonnetModel)
+				}
+				if len(m.inputs) > 7 {
+					m.inputs[7].SetValue(opusModel)
+				}
+			} else if m.isCodexReasoningFieldVisible() {
+				if fieldCount > 4 {
+					m.inputs[4].SetValue(modelValue)
+				}
+				if len(m.inputs) > 5 {
+					m.inputs[5].SetValue(config.ExtractCodexReasoningFromProvider(provider))
+				}
 			}
 		}
 	} else if m.copyFromProvider != nil {
@@ -717,21 +766,33 @@ func (m *Model) initForm(provider *config.Provider) {
 			token := config.ExtractTokenFromProvider(m.copyFromProvider)
 			baseURL := config.ExtractBaseURLFromProvider(m.copyFromProvider)
 			modelValue := config.ExtractModelFromProvider(m.copyFromProvider)
-			var extraValue string
-			if m.isDefaultSonnetFieldVisible() {
-				extraValue = config.ExtractDefaultSonnetModelFromProvider(m.copyFromProvider)
-			} else if m.isCodexReasoningFieldVisible() {
-				extraValue = config.ExtractCodexReasoningFromProvider(m.copyFromProvider)
-			}
+			haikuModel := config.ExtractDefaultHaikuModelFromProvider(m.copyFromProvider)
+			sonnetModel := config.ExtractDefaultSonnetModelFromProvider(m.copyFromProvider)
+			opusModel := config.ExtractDefaultOpusModelFromProvider(m.copyFromProvider)
 
 			m.inputs[1].SetValue(token)
 			m.inputs[2].SetValue(baseURL)
 			m.inputs[3].SetValue(m.copyFromProvider.WebsiteURL)
-			if fieldCount > 4 {
-				m.inputs[4].SetValue(modelValue)
-			}
-			if len(m.inputs) > 5 {
-				m.inputs[5].SetValue(extraValue)
+			if m.currentApp == "claude" {
+				if len(m.inputs) > 4 {
+					m.inputs[4].SetValue(modelValue)
+				}
+				if len(m.inputs) > 5 {
+					m.inputs[5].SetValue(haikuModel)
+				}
+				if len(m.inputs) > 6 {
+					m.inputs[6].SetValue(sonnetModel)
+				}
+				if len(m.inputs) > 7 {
+					m.inputs[7].SetValue(opusModel)
+				}
+			} else if m.isCodexReasoningFieldVisible() {
+				if fieldCount > 4 {
+					m.inputs[4].SetValue(modelValue)
+				}
+				if len(m.inputs) > 5 {
+					m.inputs[5].SetValue(config.ExtractCodexReasoningFromProvider(m.copyFromProvider))
+				}
 			}
 		}
 
@@ -740,12 +801,21 @@ func (m *Model) initForm(provider *config.Provider) {
 		if len(m.providers) == 0 {
 			switch m.currentApp {
 			case "claude":
-				token, baseURL, defaultModel, loaded := m.loadLiveConfigForForm()
+				token, baseURL, primaryModel, haikuModel, sonnetModel, opusModel, loaded := m.loadLiveConfigForForm()
 				if loaded {
 					m.inputs[1].SetValue(token)
 					m.inputs[2].SetValue(baseURL)
-					if defaultModel != "" && len(m.inputs) > 4 {
-						m.inputs[4].SetValue(defaultModel)
+					if len(m.inputs) > 4 && primaryModel != "" {
+						m.inputs[4].SetValue(primaryModel)
+					}
+					if len(m.inputs) > 5 && haikuModel != "" {
+						m.inputs[5].SetValue(haikuModel)
+					}
+					if len(m.inputs) > 6 && sonnetModel != "" {
+						m.inputs[6].SetValue(sonnetModel)
+					}
+					if len(m.inputs) > 7 && opusModel != "" {
+						m.inputs[7].SetValue(opusModel)
 					}
 					m.message = "💡 已从 ~/.claude/settings.json 预填充配置"
 				}
@@ -791,23 +861,12 @@ func (m Model) updateInputs(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *Model) clearFormFields() {
 	if m.anyFieldHasValue() {
 		state := struct {
-			name       string
-			token      string
-			baseURL    string
-			websiteURL string
-			modelValue string
-			extraValue string
+			values []string
 		}{
-			name:       m.inputs[0].Value(),
-			token:      m.inputs[1].Value(),
-			baseURL:    m.inputs[2].Value(),
-			websiteURL: m.inputs[3].Value(),
+			values: make([]string, len(m.inputs)),
 		}
-		if len(m.inputs) > 4 {
-			state.modelValue = m.inputs[4].Value()
-		}
-		if len(m.inputs) > 5 {
-			state.extraValue = m.inputs[5].Value()
+		for i := range m.inputs {
+			state.values[i] = m.inputs[i].Value()
 		}
 		m.undoHistory = append(m.undoHistory, state)
 	}
@@ -845,49 +904,47 @@ func (m *Model) undoLastClear() bool {
 	lastState := m.undoHistory[len(m.undoHistory)-1]
 	m.undoHistory = m.undoHistory[:len(m.undoHistory)-1]
 
-	m.inputs[0].SetValue(lastState.name)
-	m.inputs[1].SetValue(lastState.token)
-	m.inputs[2].SetValue(lastState.baseURL)
-	m.inputs[3].SetValue(lastState.websiteURL)
-	if len(m.inputs) > 4 {
-		m.inputs[4].SetValue(lastState.modelValue)
-	}
-	if len(m.inputs) > 5 {
-		m.inputs[5].SetValue(lastState.extraValue)
+	for i := range m.inputs {
+		if i < len(lastState.values) {
+			m.inputs[i].SetValue(lastState.values[i])
+		}
 	}
 
 	return true
 }
 
-func (m *Model) loadLiveConfigForForm() (token, baseURL, defaultModel string, loaded bool) {
+func (m *Model) loadLiveConfigForForm() (token, baseURL, primaryModel, haikuModel, sonnetModel, opusModel string, loaded bool) {
 	if m.currentApp != "claude" {
-		return "", "", "", false
+		return "", "", "", "", "", "", false
 	}
 
 	settingsPath, err := config.GetClaudeSettingsPath()
 	if err != nil || !fileExists(settingsPath) {
-		return "", "", "", false
+		return "", "", "", "", "", "", false
 	}
 
 	data, err := os.ReadFile(settingsPath)
 	if err != nil {
-		return "", "", "", false
+		return "", "", "", "", "", "", false
 	}
 
 	var liveSettings config.ClaudeSettings
 	if err := json.Unmarshal(data, &liveSettings); err != nil {
-		return "", "", "", false
+		return "", "", "", "", "", "", false
 	}
 
 	token = liveSettings.Env.AnthropicAuthToken
 	baseURL = liveSettings.Env.AnthropicBaseURL
-	defaultModel = liveSettings.Env.AnthropicDefaultSonnetModel
+	primaryModel = liveSettings.Env.AnthropicModel
+	haikuModel = liveSettings.Env.AnthropicDefaultHaikuModel
+	sonnetModel = liveSettings.Env.AnthropicDefaultSonnetModel
+	opusModel = liveSettings.Env.AnthropicDefaultOpusModel
 
-	if token != "" && baseURL != "" {
-		return token, baseURL, defaultModel, true
+	if token != "" || baseURL != "" || primaryModel != "" || haikuModel != "" || sonnetModel != "" || opusModel != "" {
+		return token, baseURL, primaryModel, haikuModel, sonnetModel, opusModel, true
 	}
 
-	return "", "", "", false
+	return "", "", "", "", "", "", false
 }
 
 func (m *Model) loadCodexConfigForForm() (token, baseURL, modelValue, reasoningValue string, loaded bool) {

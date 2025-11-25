@@ -89,11 +89,20 @@ func (m *Manager) writeClaudeConfig(provider *Provider) error {
 		if baseURL, ok := envMap["ANTHROPIC_BASE_URL"].(string); ok {
 			settings.Env.AnthropicBaseURL = baseURL
 		}
+		if model, ok := envMap["ANTHROPIC_MODEL"].(string); ok {
+			settings.Env.AnthropicModel = model
+		}
+		if defaultHaikuModel, ok := envMap["ANTHROPIC_DEFAULT_HAIKU_MODEL"].(string); ok {
+			settings.Env.AnthropicDefaultHaikuModel = defaultHaikuModel
+		}
 		if model, ok := envMap["CLAUDE_CODE_MODEL"].(string); ok {
 			settings.Env.ClaudeCodeModel = model
 		}
 		if maxTokens, ok := envMap["CLAUDE_CODE_MAX_TOKENS"].(string); ok {
 			settings.Env.ClaudeCodeMaxTokens = maxTokens
+		}
+		if defaultOpusModel, ok := envMap["ANTHROPIC_DEFAULT_OPUS_MODEL"].(string); ok {
+			settings.Env.AnthropicDefaultOpusModel = defaultOpusModel
 		}
 		if defaultSonnetModel, ok := envMap["ANTHROPIC_DEFAULT_SONNET_MODEL"].(string); ok {
 			settings.Env.AnthropicDefaultSonnetModel = defaultSonnetModel
@@ -102,8 +111,14 @@ func (m *Manager) writeClaudeConfig(provider *Provider) error {
 
 	if model, ok := provider.SettingsConfig["model"].(string); ok {
 		settings.Model = model
+	} else if settings.Env.AnthropicModel != "" {
+		settings.Model = settings.Env.AnthropicModel
 	} else {
 		settings.Model = ""
+	}
+
+	if settings.Env.AnthropicModel == "" && settings.Model != "" {
+		settings.Env.AnthropicModel = settings.Model
 	}
 
 	if err := utils.WriteJSONFile(settingsPath, settings, 0644); err != nil {

@@ -78,10 +78,10 @@ func (m *Manager) AddProvider(name, apiToken, baseURL, category string) error {
 }
 
 func (m *Manager) AddProviderWithWebsite(appName, name, websiteURL, apiToken, baseURL, category string) error {
-	return m.AddProviderForApp(appName, name, websiteURL, apiToken, baseURL, category, "", "")
+	return m.AddProviderForApp(appName, name, websiteURL, apiToken, baseURL, category, "", "", "", "")
 }
 
-func (m *Manager) AddProviderForApp(appName, name, websiteURL, apiToken, baseURL, category, claudeModel, defaultSonnetModel string) error {
+func (m *Manager) AddProviderForApp(appName, name, websiteURL, apiToken, baseURL, category, claudeModel, defaultHaikuModel, defaultSonnetModel, defaultOpusModel string) error {
 	if _, exists := m.config.Apps[appName]; !exists {
 		m.config.Apps[appName] = ProviderManager{
 			Providers: make(map[string]Provider),
@@ -113,8 +113,17 @@ func (m *Manager) AddProviderForApp(appName, name, websiteURL, apiToken, baseURL
 			"ANTHROPIC_AUTH_TOKEN": apiToken,
 			"ANTHROPIC_BASE_URL":   baseURL,
 		}
+		if claudeModel != "" {
+			envMap["ANTHROPIC_MODEL"] = claudeModel
+		}
+		if defaultHaikuModel != "" {
+			envMap["ANTHROPIC_DEFAULT_HAIKU_MODEL"] = defaultHaikuModel
+		}
 		if defaultSonnetModel != "" {
 			envMap["ANTHROPIC_DEFAULT_SONNET_MODEL"] = defaultSonnetModel
+		}
+		if defaultOpusModel != "" {
+			envMap["ANTHROPIC_DEFAULT_OPUS_MODEL"] = defaultOpusModel
 		}
 		settingsConfig = map[string]interface{}{
 			"env": envMap,
@@ -374,10 +383,10 @@ func (m *Manager) UpdateProvider(oldName, newName, apiToken, baseURL, category s
 }
 
 func (m *Manager) UpdateProviderWithWebsite(appName, oldName, newName, websiteURL, apiToken, baseURL, category string) error {
-	return m.UpdateProviderForApp(appName, oldName, newName, websiteURL, apiToken, baseURL, category, "", "")
+	return m.UpdateProviderForApp(appName, oldName, newName, websiteURL, apiToken, baseURL, category, "", "", "", "")
 }
 
-func (m *Manager) UpdateProviderForApp(appName, oldName, newName, websiteURL, apiToken, baseURL, category, claudeModel, defaultSonnetModel string) error {
+func (m *Manager) UpdateProviderForApp(appName, oldName, newName, websiteURL, apiToken, baseURL, category, claudeModel, defaultHaikuModel, defaultSonnetModel, defaultOpusModel string) error {
 	app, exists := m.config.Apps[appName]
 	if !exists {
 		return fmt.Errorf("应用 '%s' 不存在", appName)
@@ -424,10 +433,25 @@ func (m *Manager) UpdateProviderForApp(appName, oldName, newName, websiteURL, ap
 		if envMap, ok := targetProvider.SettingsConfig["env"].(map[string]interface{}); ok {
 			envMap["ANTHROPIC_AUTH_TOKEN"] = apiToken
 			envMap["ANTHROPIC_BASE_URL"] = baseURL
+			if claudeModel != "" {
+				envMap["ANTHROPIC_MODEL"] = claudeModel
+			} else {
+				delete(envMap, "ANTHROPIC_MODEL")
+			}
+			if defaultHaikuModel != "" {
+				envMap["ANTHROPIC_DEFAULT_HAIKU_MODEL"] = defaultHaikuModel
+			} else {
+				delete(envMap, "ANTHROPIC_DEFAULT_HAIKU_MODEL")
+			}
 			if defaultSonnetModel != "" {
 				envMap["ANTHROPIC_DEFAULT_SONNET_MODEL"] = defaultSonnetModel
 			} else {
 				delete(envMap, "ANTHROPIC_DEFAULT_SONNET_MODEL")
+			}
+			if defaultOpusModel != "" {
+				envMap["ANTHROPIC_DEFAULT_OPUS_MODEL"] = defaultOpusModel
+			} else {
+				delete(envMap, "ANTHROPIC_DEFAULT_OPUS_MODEL")
 			}
 		}
 		if claudeModel != "" {
