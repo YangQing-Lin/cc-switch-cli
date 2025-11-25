@@ -114,6 +114,10 @@ go vet ./...
   "env": {
     "ANTHROPIC_AUTH_TOKEN": "sk-xxx",
     "ANTHROPIC_BASE_URL": "https://api.example.com",
+    "ANTHROPIC_MODEL": "claude-sonnet-4",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "claude-haiku-3.5",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "claude-sonnet-4",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "claude-opus-4",
     "CLAUDE_CODE_MODEL": "claude-3-opus",
     "CLAUDE_CODE_MAX_TOKENS": "32000"
   },
