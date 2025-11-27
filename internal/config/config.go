@@ -90,3 +90,20 @@ func (m *Manager) Save() error {
 
 	return utils.WriteJSONFile(m.configPath, m.config, 0600)
 }
+
+// GetViewMode 获取视图模式偏好
+func (m *Manager) GetViewMode() string {
+	if m.config.Preferences == nil || m.config.Preferences.ViewMode == "" {
+		return "single"
+	}
+	return m.config.Preferences.ViewMode
+}
+
+// SetViewMode 设置视图模式偏好
+func (m *Manager) SetViewMode(mode string) error {
+	if m.config.Preferences == nil {
+		m.config.Preferences = &UserPreferences{}
+	}
+	m.config.Preferences.ViewMode = mode
+	return m.Save()
+}

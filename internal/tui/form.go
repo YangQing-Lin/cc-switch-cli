@@ -355,6 +355,10 @@ func (m *Model) submitForm() {
 			m.err = nil
 			m.mode = "list"
 			m.refreshProviders()
+			// 三列模式下也刷新所有列
+			if m.viewMode == "multi" {
+				m.refreshAllColumns()
+			}
 			m.syncModTime()
 		}
 		return
@@ -430,6 +434,10 @@ func (m *Model) submitForm() {
 		m.err = nil
 		m.mode = "list"
 		m.refreshProviders()
+		// 三列模式下也刷新所有列
+		if m.viewMode == "multi" {
+			m.refreshAllColumns()
+		}
 		m.syncModTime()
 	}
 }
@@ -442,10 +450,19 @@ func (m Model) viewForm() string {
 		Foreground(lipgloss.Color("#007AFF")).
 		Padding(0, 1)
 
+	// 获取当前模块名称
+	appName := "Claude Code"
+	switch m.currentApp {
+	case "codex":
+		appName = "Codex CLI"
+	case "gemini":
+		appName = "Gemini CLI"
+	}
+
 	if m.mode == "add" {
-		s.WriteString(title.Render(fmt.Sprintf("添加新配置 (v%s)", m.getVersion())) + "\n\n")
+		s.WriteString(title.Render(fmt.Sprintf("添加新配置 - %s (v%s)", appName, m.getVersion())) + "\n\n")
 	} else {
-		s.WriteString(title.Render(fmt.Sprintf("编辑配置 (v%s)", m.getVersion())) + "\n\n")
+		s.WriteString(title.Render(fmt.Sprintf("编辑配置 - %s (v%s)", appName, m.getVersion())) + "\n\n")
 	}
 
 	if m.err != nil {

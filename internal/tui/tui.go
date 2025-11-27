@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/YangQing-Lin/cc-switch-cli/internal/backup"
 	"github.com/YangQing-Lin/cc-switch-cli/internal/config"
@@ -18,6 +19,21 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
+
+// displayWidth 计算字符串的显示宽度（中文等宽字符占2格）
+func displayWidth(s string) int {
+	width := 0
+	for _, r := range s {
+		if unicode.Is(unicode.Han, r) || unicode.Is(unicode.Hiragana, r) ||
+			unicode.Is(unicode.Katakana, r) || unicode.Is(unicode.Hangul, r) ||
+			(r >= 0xFF00 && r <= 0xFFEF) { // 全角字符
+			width += 2
+		} else {
+			width += 1
+		}
+	}
+	return width
+}
 
 // Model TUI 主模型
 type Model struct {
@@ -81,6 +97,12 @@ type Model struct {
 	// API Token 显示状态
 	apiTokenVisible bool
 
+	// 三列视图模式相关
+	viewMode        string               // "single" 或 "multi" (三列模式)
+	columnCursor    int                  // 当前聚焦的列索引 (0=Claude, 1=Codex, 2=Gemini)
+	columnCursors   [3]int               // 每列独立的行光标位置
+	columnProviders [3][]config.Provider // 三列各自的配置列表缓存
+
 	// MCP 管理相关字段
 	mcpServers      []config.McpServer // MCP 服务器列表
 	mcpCursor       int                // MCP 列表光标
@@ -136,16 +158,74 @@ func New(manager *config.Manager) Model {
 		lastModTime:     modTime,
 		templateManager: templateManager,
 		isPortableMode:  portable.IsPortableMode(),
+		viewMode:        manager.GetViewMode(), // 从配置加载视图模式
 	}
 	if initErr != nil {
 		m.err = initErr
 	}
 	m.refreshProviders()
+
+	// 如果是三列模式，初始化所有列的配置缓存
+	if m.viewMode == "multi" {
+		m.refreshAllColumns()
+	}
+
 	return m
 }
 
 func (m *Model) refreshProviders() {
 	m.providers = m.manager.ListProvidersForApp(m.currentApp)
+}
+
+// refreshAllColumns 刷新三列配置缓存
+func (m *Model) refreshAllColumns() {
+	m.columnProviders[0] = m.manager.ListProvidersForApp("claude")
+	m.columnProviders[1] = m.manager.ListProvidersForApp("codex")
+	m.columnProviders[2] = m.manager.ListProvidersForApp("gemini")
+
+	// 确保光标不越界
+	for i := 0; i < 3; i++ {
+		if len(m.columnProviders[i]) > 0 && m.columnCursors[i] >= len(m.columnProviders[i]) {
+			m.columnCursors[i] = len(m.columnProviders[i]) - 1
+		}
+	}
+}
+
+// columnToAppName 列索引转应用名
+func (m Model) columnToAppName(col int) string {
+	switch col {
+	case 0:
+		return "claude"
+	case 1:
+		return "codex"
+	case 2:
+		return "gemini"
+	default:
+		return "claude"
+	}
+}
+
+// syncColumnCursors 从单列模式切换到三列模式时同步光标
+func (m *Model) syncColumnCursors() {
+	m.refreshAllColumns()
+
+	// 设置 columnCursor 为当前应用对应的列
+	switch m.currentApp {
+	case "claude":
+		m.columnCursor = 0
+	case "codex":
+		m.columnCursor = 1
+	case "gemini":
+		m.columnCursor = 2
+	}
+
+	// 同步当前应用的光标位置到对应列
+	m.columnCursors[m.columnCursor] = m.cursor
+}
+
+// saveViewModePreference 静默保存视图模式偏好
+func (m *Model) saveViewModePreference() {
+	_ = m.manager.SetViewMode(m.viewMode)
 }
 
 func (m *Model) refreshTemplates() {
@@ -355,6 +435,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m Model) View() string {
 	switch m.mode {
 	case "list":
+		if m.viewMode == "multi" {
+			return m.viewListMulti()
+		}
 		return m.viewList()
 	case "add", "edit":
 		return m.viewForm()
@@ -400,9 +483,22 @@ func (m Model) View() string {
 
 // List view handlers
 func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// 三列模式委托给 handleMultiColumnKeys
+	if m.viewMode == "multi" {
+		return m.handleMultiColumnKeys(msg)
+	}
+
 	switch msg.String() {
 	case "q", "ctrl+c":
 		return m, tea.Quit
+	case "v":
+		// 切换到三列模式
+		m.viewMode = "multi"
+		m.syncColumnCursors()
+		m.saveViewModePreference()
+		m.message = "切换到三列视图"
+		m.err = nil
+		return m, nil
 	case "up", "k":
 		if len(m.providers) > 0 {
 			if m.cursor > 0 {
@@ -696,6 +792,10 @@ func (m Model) handleDeleteKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if m.cursor >= len(m.providers) && m.cursor > 0 {
 				m.cursor--
 			}
+			// 三列模式下也刷新所有列并检查光标越界
+			if m.viewMode == "multi" {
+				m.refreshAllColumns()
+			}
 			m.syncModTime()
 		}
 		m.mode = "list"
@@ -738,6 +838,127 @@ func (m Model) handleAppSelectKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.mode = "list"
 		m.message = fmt.Sprintf("切换到 %s", m.currentApp)
 	}
+	return m, nil
+}
+
+// handleMultiColumnKeys 处理三列模式的键盘事件
+func (m Model) handleMultiColumnKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "q", "ctrl+c":
+		return m, tea.Quit
+
+	case "v":
+		// 切换回单列模式
+		m.viewMode = "single"
+		m.currentApp = m.columnToAppName(m.columnCursor)
+		m.cursor = m.columnCursors[m.columnCursor]
+		m.refreshProviders()
+		m.saveViewModePreference()
+		m.message = "切换到单列视图"
+		m.err = nil
+		return m, nil
+
+	case "tab":
+		// Tab 切换到下一列
+		if m.columnCursor < 2 {
+			m.columnCursor++
+		} else {
+			m.columnCursor = 0
+		}
+
+	case "left", "h":
+		if m.columnCursor > 0 {
+			m.columnCursor--
+		} else {
+			m.columnCursor = 2 // 循环
+		}
+
+	case "right", "l":
+		if m.columnCursor < 2 {
+			m.columnCursor++
+		} else {
+			m.columnCursor = 0 // 循环
+		}
+
+	case "up", "k":
+		col := m.columnCursor
+		if len(m.columnProviders[col]) > 0 {
+			if m.columnCursors[col] > 0 {
+				m.columnCursors[col]--
+			} else {
+				m.columnCursors[col] = len(m.columnProviders[col]) - 1 // 循环
+			}
+		}
+
+	case "down", "j":
+		col := m.columnCursor
+		if len(m.columnProviders[col]) > 0 {
+			if m.columnCursors[col] < len(m.columnProviders[col])-1 {
+				m.columnCursors[col]++
+			} else {
+				m.columnCursors[col] = 0 // 循环
+			}
+		}
+
+	case "enter":
+		col := m.columnCursor
+		if len(m.columnProviders[col]) > 0 {
+			provider := m.columnProviders[col][m.columnCursors[col]]
+			appName := m.columnToAppName(col)
+			err := m.manager.SwitchProviderForApp(appName, provider.Name)
+			if err != nil {
+				m.err = err
+				m.message = ""
+			} else {
+				m.message = fmt.Sprintf("已切换 %s 配置: %s", appName, provider.Name)
+				m.err = nil
+				m.refreshAllColumns()
+			}
+		}
+
+	case "a":
+		// 添加配置到当前列对应的应用
+		m.currentApp = m.columnToAppName(m.columnCursor)
+		m.mode = "add"
+		m.editName = ""
+		m.copyFromProvider = nil
+		m.initForm(nil)
+		return m, textinput.Blink
+
+	case "e":
+		col := m.columnCursor
+		if len(m.columnProviders[col]) > 0 {
+			provider := m.columnProviders[col][m.columnCursors[col]]
+			m.currentApp = m.columnToAppName(col)
+			m.mode = "edit"
+			m.editName = provider.Name
+			m.initForm(&provider)
+			return m, textinput.Blink
+		}
+
+	case "d":
+		col := m.columnCursor
+		if len(m.columnProviders[col]) > 0 {
+			provider := m.columnProviders[col][m.columnCursors[col]]
+			appName := m.columnToAppName(col)
+			current := m.manager.GetCurrentProviderForApp(appName)
+			if current != nil && provider.ID == current.ID {
+				m.err = errors.New(i18n.T("error.cannot_delete_current"))
+				m.message = ""
+			} else {
+				m.currentApp = appName
+				m.mode = "delete"
+				m.deleteName = provider.Name
+			}
+		}
+
+	case "r":
+		m.refreshAllColumns()
+		m.message = "列表已刷新"
+		m.err = nil
+		return m, tea.ClearScreen
+	}
+
 	return m, nil
 }
 
@@ -849,6 +1070,7 @@ func (m Model) viewList() string {
 		"c: Claude",
 		"x: Codex",
 		"g: Gemini",
+		"v: 三列视图",
 		"p: 便携模式",
 		"u: 检查更新",
 		"U: 执行更新",
@@ -868,6 +1090,243 @@ func (m Model) viewList() string {
 	s.WriteString(helpStyle.Render(strings.Join(helpLines, "\n")))
 
 	return s.String()
+}
+
+// viewListMulti 三列视图渲染（表格形式）
+func (m Model) viewListMulti() string {
+	var s strings.Builder
+
+	// 便携模式标识
+	portableIndicator := ""
+	if m.isPortableMode {
+		portableIndicator = " (便携版)"
+	}
+
+	// 标题
+	title := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("#007AFF")).
+		Render(fmt.Sprintf("CC Switch CLI v%s - 三列视图%s", m.getVersion(), portableIndicator))
+	s.WriteString(title + "\n\n")
+
+	// 状态消息
+	if m.err != nil {
+		errStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF3B30")).Bold(true)
+		s.WriteString(errStyle.Render("✗ "+m.err.Error()) + "\n\n")
+	} else if m.message != "" {
+		msgStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#34C759")).Bold(true)
+		s.WriteString(msgStyle.Render("✓ "+m.message) + "\n\n")
+	}
+
+	// 计算每列宽度（基于最长配置名称的显示宽度 + 2）
+	appTitles := []string{"Claude Code", "Codex CLI", "Gemini CLI"}
+	colWidths := make([]int, 3)
+	for i := 0; i < 3; i++ {
+		// 最小宽度为标题显示宽度
+		maxWidth := displayWidth(appTitles[i])
+		for _, p := range m.columnProviders[i] {
+			w := displayWidth(p.Name)
+			if w > maxWidth {
+				maxWidth = w
+			}
+		}
+		// 如果该列为空，确保至少能显示"暂无配置"
+		if len(m.columnProviders[i]) == 0 {
+			emptyHint := displayWidth("暂无配置")
+			if emptyHint > maxWidth {
+				maxWidth = emptyHint
+			}
+		}
+		colWidths[i] = maxWidth + 2 // +2 为左右各留 1 字符空隙
+		if colWidths[i] < 10 {
+			colWidths[i] = 10
+		}
+	}
+
+	// 计算最大行数
+	maxRows := 0
+	for i := 0; i < 3; i++ {
+		if len(m.columnProviders[i]) > maxRows {
+			maxRows = len(m.columnProviders[i])
+		}
+	}
+	if maxRows == 0 {
+		maxRows = 1 // 至少显示一行（空提示）
+	}
+
+	// 表格边框字符
+	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#3A3A3C"))
+
+	// 渲染表头边框
+	s.WriteString(borderStyle.Render(m.renderTableBorder(colWidths, "top")) + "\n")
+
+	// 渲染表头
+	s.WriteString(m.renderTableHeader(appTitles, colWidths) + "\n")
+
+	// 渲染表头分隔线
+	s.WriteString(borderStyle.Render(m.renderTableBorder(colWidths, "middle")) + "\n")
+
+	// 渲染数据行
+	for row := 0; row < maxRows; row++ {
+		s.WriteString(m.renderTableRow(row, colWidths) + "\n")
+	}
+
+	// 渲染底部边框
+	s.WriteString(borderStyle.Render(m.renderTableBorder(colWidths, "bottom")) + "\n")
+
+	// 底部帮助信息
+	s.WriteString("\n")
+	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#8E8E93"))
+	helps := []string{
+		"Tab/←/→: 切换列",
+		"↑/↓: 选择",
+		"Enter: 切换",
+		"a: 添加",
+		"e: 编辑",
+		"d: 删除",
+		"v: 单列模式",
+		"q: 退出",
+	}
+	s.WriteString(helpStyle.Render(strings.Join(helps, " • ")))
+
+	return s.String()
+}
+
+// renderTableBorder 渲染表格边框
+func (m Model) renderTableBorder(colWidths []int, position string) string {
+	var left, mid, right, fill string
+	switch position {
+	case "top":
+		left, mid, right, fill = "┌", "┬", "┐", "─"
+	case "middle":
+		left, mid, right, fill = "├", "┼", "┤", "─"
+	case "bottom":
+		left, mid, right, fill = "└", "┴", "┘", "─"
+	}
+
+	var parts []string
+	for i, w := range colWidths {
+		if i == 0 {
+			parts = append(parts, left)
+		}
+		parts = append(parts, strings.Repeat(fill, w+2)) // +2 为单元格内边距
+		if i < len(colWidths)-1 {
+			parts = append(parts, mid)
+		} else {
+			parts = append(parts, right)
+		}
+	}
+	return strings.Join(parts, "")
+}
+
+// renderTableHeader 渲染表头
+func (m Model) renderTableHeader(titles []string, colWidths []int) string {
+	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#3A3A3C"))
+	var cells []string
+
+	for i, title := range titles {
+		isActive := i == m.columnCursor
+		titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#007AFF"))
+		if isActive {
+			titleStyle = titleStyle.Underline(true)
+		}
+
+		// 居中对齐（使用显示宽度）
+		titleWidth := displayWidth(title)
+		padding := colWidths[i] - titleWidth
+		leftPad := padding / 2
+		rightPad := padding - leftPad
+		cell := strings.Repeat(" ", leftPad) + titleStyle.Render(title) + strings.Repeat(" ", rightPad)
+		cells = append(cells, " "+cell+" ")
+	}
+
+	return borderStyle.Render("│") + strings.Join(cells, borderStyle.Render("│")) + borderStyle.Render("│")
+}
+
+// renderTableRow 渲染数据行
+func (m Model) renderTableRow(row int, colWidths []int) string {
+	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#3A3A3C"))
+	var cells []string
+
+	for col := 0; col < 3; col++ {
+		providers := m.columnProviders[col]
+		width := colWidths[col]
+		isActiveColumn := col == m.columnCursor
+		appName := m.columnToAppName(col)
+		current := m.manager.GetCurrentProviderForApp(appName)
+
+		var cellContent string
+		var contentWidth int
+
+		if row < len(providers) {
+			p := providers[row]
+			isActive := current != nil && p.ID == current.ID
+			isCursor := isActiveColumn && row == m.columnCursors[col]
+
+			marker := "○"
+			markerStyle := lipgloss.NewStyle()
+			if isActive {
+				markerStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#34C759")).Bold(true)
+				marker = "●"
+			}
+
+			nameStyle := lipgloss.NewStyle()
+			if isCursor {
+				if isActive {
+					nameStyle = nameStyle.Background(lipgloss.Color("#34C759")).Foreground(lipgloss.Color("#FFFFFF")).Bold(true)
+				} else {
+					nameStyle = nameStyle.Background(lipgloss.Color("#007AFF")).Foreground(lipgloss.Color("#FFFFFF")).Bold(true)
+				}
+			}
+
+			name := p.Name
+			nameWidth := displayWidth(name)
+
+			// 截断过长名称
+			if nameWidth > width-2 {
+				// 逐字符截断直到宽度合适
+				truncated := ""
+				truncWidth := 0
+				for _, r := range name {
+					rw := 1
+					if unicode.Is(unicode.Han, r) || unicode.Is(unicode.Hiragana, r) ||
+						unicode.Is(unicode.Katakana, r) || unicode.Is(unicode.Hangul, r) ||
+						(r >= 0xFF00 && r <= 0xFFEF) {
+						rw = 2
+					}
+					if truncWidth+rw+3 > width-2 { // 留3个字符给"..."
+						break
+					}
+					truncated += string(r)
+					truncWidth += rw
+				}
+				name = truncated + "..."
+				nameWidth = truncWidth + 3
+			}
+
+			cellContent = markerStyle.Render(marker) + " " + nameStyle.Render(name)
+			contentWidth = 2 + nameWidth // marker(1) + space(1) + name
+		} else if row == 0 && len(providers) == 0 {
+			// 空列提示
+			hint := "暂无配置"
+			hintStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#8E8E93")).Italic(true)
+			cellContent = hintStyle.Render(hint)
+			contentWidth = displayWidth(hint)
+		} else {
+			// 空单元格
+			cellContent = ""
+			contentWidth = 0
+		}
+
+		// 填充空格对齐
+		if contentWidth < width {
+			cellContent += strings.Repeat(" ", width-contentWidth)
+		}
+
+		cells = append(cells, " "+cellContent+" ")
+	}
+
+	return borderStyle.Render("│") + strings.Join(cells, borderStyle.Render("│")) + borderStyle.Render("│")
 }
 
 // viewAppSelect renders the app selection screen

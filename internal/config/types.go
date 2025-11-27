@@ -38,9 +38,10 @@ type ProviderManager struct {
 // MultiAppConfig 根配置文件结构（v2 格式，与 cc-switch 完全一致）
 // 注意：v2 格式将 apps 展平到顶层，而不是嵌套在 "apps" 键下
 type MultiAppConfig struct {
-	Version int                        `json:"version"`       // 配置版本（当前为 2）
-	Apps    map[string]ProviderManager `json:"-"`             // 应用名称 -> ProviderManager (展平到顶层)
-	Mcp     *McpRoot                   `json:"mcp,omitempty"` // MCP 配置
+	Version     int                        `json:"version"`               // 配置版本（当前为 2）
+	Apps        map[string]ProviderManager `json:"-"`                     // 应用名称 -> ProviderManager (展平到顶层)
+	Mcp         *McpRoot                   `json:"mcp,omitempty"`         // MCP 配置
+	Preferences *UserPreferences           `json:"preferences,omitempty"` // 用户偏好设置
 }
 
 // OldMultiAppConfig 旧版配置文件结构（v2-old 格式，apps 嵌套在 "apps" 键下）
@@ -63,6 +64,11 @@ func (c *MultiAppConfig) MarshalJSON() ([]byte, error) {
 	// 添加 MCP 配置
 	if c.Mcp != nil {
 		result["mcp"] = c.Mcp
+	}
+
+	// 添加用户偏好配置
+	if c.Preferences != nil {
+		result["preferences"] = c.Preferences
 	}
 
 	return json.Marshal(result)
@@ -92,16 +98,26 @@ func (c *MultiAppConfig) UnmarshalJSON(data []byte) error {
 		c.Mcp = &mcpRoot
 	}
 
+	// 提取用户偏好配置
+	if prefsData, ok := raw["preferences"]; ok {
+		var prefs UserPreferences
+		if err := json.Unmarshal(prefsData, &prefs); err != nil {
+			return err
+		}
+		c.Preferences = &prefs
+	}
+
 	// 初始化 Apps map
 	c.Apps = make(map[string]ProviderManager)
 
-	// 已知的应用类型（非应用字段）
+	// 已知的非应用字段
 	knownFields := map[string]bool{
-		"version": true,
-		"mcp":     true,
+		"version":     true,
+		"mcp":         true,
+		"preferences": true,
 	}
 
-	// 提取所有应用配置（除了 version 和 mcp 之外的字段都视为应用）
+	// 提取所有应用配置（除了已知字段之外的字段都视为应用）
 	for key, rawData := range raw {
 		if !knownFields[key] {
 			var manager ProviderManager
@@ -244,6 +260,11 @@ type McpServer struct {
 // McpRoot MCP 根配置
 type McpRoot struct {
 	Servers map[string]McpServer `json:"servers"` // id -> McpServer
+}
+
+// UserPreferences 用户偏好设置
+type UserPreferences struct {
+	ViewMode string `json:"viewMode,omitempty"` // "single" 或 "multi" (三列模式)
 }
 
 // UnmarshalJSON 自定义反序列化，保存未知字段
