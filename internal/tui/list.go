@@ -342,7 +342,7 @@ func (m Model) handleMultiColumnKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.columnCursor = 2 // 循环
 		}
 
-	case "right", "l":
+	case "right":
 		if m.columnCursor < 2 {
 			m.columnCursor++
 		} else {
@@ -419,6 +419,187 @@ func (m Model) handleMultiColumnKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.mode = "delete"
 				m.deleteName = provider.Name
 			}
+		}
+
+	case "=":
+		col := m.columnCursor
+		providers := m.columnProviders[col]
+		if len(providers) == 0 {
+			break
+		}
+		cursor := m.columnCursors[col]
+		if cursor == 0 {
+			m.message = "已在顶部，无法继续上调"
+			m.err = nil
+			break
+		}
+		provider := providers[cursor]
+		appName := m.columnToAppName(col)
+		if err := m.manager.MoveProviderForApp(appName, provider.ID, -1); err != nil {
+			m.err = err
+			m.message = ""
+			break
+		}
+		targetID := provider.ID
+		m.refreshAllColumns()
+		m.syncModTime()
+		m.err = nil
+		m.message = "↑ 顺序已上调: " + provider.Name
+		// 更新光标位置
+		newIndex := cursor - 1
+		for idx, p := range m.columnProviders[col] {
+			if p.ID == targetID {
+				newIndex = idx
+				break
+			}
+		}
+		if newIndex < 0 {
+			newIndex = 0
+		}
+		m.columnCursors[col] = newIndex
+
+	case "-":
+		col := m.columnCursor
+		providers := m.columnProviders[col]
+		if len(providers) == 0 {
+			break
+		}
+		cursor := m.columnCursors[col]
+		if cursor >= len(providers)-1 {
+			m.message = "已在底部，无法继续下调"
+			m.err = nil
+			break
+		}
+		provider := providers[cursor]
+		appName := m.columnToAppName(col)
+		if err := m.manager.MoveProviderForApp(appName, provider.ID, 1); err != nil {
+			m.err = err
+			m.message = ""
+			break
+		}
+		targetID := provider.ID
+		m.refreshAllColumns()
+		m.syncModTime()
+		m.err = nil
+		m.message = "↓ 顺序已下调: " + provider.Name
+		// 更新光标位置
+		newIndex := cursor + 1
+		for idx, p := range m.columnProviders[col] {
+			if p.ID == targetID {
+				newIndex = idx
+				break
+			}
+		}
+		if newIndex > len(m.columnProviders[col])-1 {
+			newIndex = len(m.columnProviders[col]) - 1
+		}
+		m.columnCursors[col] = newIndex
+
+	case "C":
+		// 复制当前选中的配置并进入创建模式
+		col := m.columnCursor
+		if len(m.columnProviders[col]) > 0 {
+			provider := m.columnProviders[col][m.columnCursors[col]]
+			m.currentApp = m.columnToAppName(col)
+			m.mode = "add"
+			m.editName = ""
+			m.copyFromProvider = &provider
+			m.initForm(nil)
+			return m, textinput.Blink
+		}
+
+	case "b":
+		// Create backup
+		backupID, err := backup.CreateBackup(m.configPath)
+		if err != nil {
+			m.err = fmt.Errorf("创建备份失败: %w", err)
+			m.message = ""
+		} else if backupID == "" {
+			m.err = errors.New("配置文件不存在，无法创建备份")
+			m.message = ""
+		} else {
+			m.message = "备份已创建: " + backupID
+			m.err = nil
+		}
+
+	case "l":
+		// List backups
+		configDir := filepath.Dir(m.configPath)
+		backups, err := backup.ListBackups(configDir)
+		if err != nil {
+			m.err = fmt.Errorf("读取备份列表失败: %w", err)
+			m.message = ""
+		} else {
+			m.backupList = backups
+			m.backupCursor = 0
+			m.mode = "backup_list"
+			m.message = ""
+			m.err = nil
+		}
+
+	case "m":
+		// Template manager
+		if m.templateManager == nil {
+			m.err = errors.New("模板管理器未初始化")
+			m.message = ""
+		} else {
+			m.currentApp = m.columnToAppName(m.columnCursor)
+			m.mode = "template_manager"
+			m.templateMode = "list"
+			m.refreshTemplates()
+			m.templateCursor = 0
+			m.message = ""
+			m.err = nil
+		}
+
+	case "M":
+		// MCP manager
+		m.mode = "mcp_manager"
+		m.mcpMode = "list"
+		m.refreshMcpServers()
+		m.mcpCursor = 0
+		m.message = ""
+		m.err = nil
+
+	case "p":
+		// Toggle portable mode
+		if m.isPortableMode {
+			err := m.disablePortableMode()
+			if err != nil {
+				m.err = fmt.Errorf("禁用便携模式失败: %w", err)
+				m.message = ""
+			} else {
+				m.isPortableMode = false
+				m.message = "✓ 便携模式已禁用"
+				m.err = nil
+			}
+		} else {
+			err := m.enablePortableMode()
+			if err != nil {
+				m.err = fmt.Errorf("启用便携模式失败: %w", err)
+				m.message = ""
+			} else {
+				m.isPortableMode = true
+				m.message = "✓ 便携模式已启用"
+				m.err = nil
+			}
+		}
+
+	case "u":
+		// Check for updates
+		m.message = "正在检查更新..."
+		m.err = nil
+		return m, checkUpdateCmd()
+
+	case "U":
+		// Download and install update (if available)
+		if m.latestRelease != nil {
+			m.message = "正在下载更新..."
+			m.err = nil
+			return m, downloadUpdateCmd(m.latestRelease)
+		} else {
+			m.err = errors.New("没有可用的更新，请先按 'u' 检查更新")
+			m.message = ""
 		}
 
 	case "r":
@@ -647,17 +828,28 @@ func (m Model) viewListMulti() string {
 	s.WriteString("\n")
 	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#8E8E93"))
 	helps := []string{
-		"Tab/←/→: 切换列",
+		"Tab/←→: 切换列",
 		"↑/↓: 选择",
+		"=: 上调",
+		"-: 下调",
 		"Enter: 切换",
 		"a: 添加",
+		"C: 复制",
 		"e: 编辑",
 		"d: 删除",
+		"b: 备份",
+		"l: 备份列表",
+		"m: 模板管理",
+		"M: MCP管理",
+		"p: 便携模式",
+		"u: 检查更新",
+		"U: 执行更新",
+		"r: 刷新",
 		"v: 单列模式",
 		"q: 退出",
 	}
 
-	const itemsPerLine = 4
+	const itemsPerLine = 5
 	var helpLines []string
 	for i := 0; i < len(helps); i += itemsPerLine {
 		end := i + itemsPerLine

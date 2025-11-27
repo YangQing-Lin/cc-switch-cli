@@ -33,7 +33,6 @@ type Model struct {
 	appCursor           int                 // 应用选择光标 (0=Claude, 1=Codex, 2=Gemini)
 	lastModTime         time.Time           // 配置文件最后修改时间
 	configPath          string              // 配置文件路径
-	configCorrupted     bool                // 配置文件是否损坏
 	backupList          []backup.BackupInfo // 备份列表
 	backupCursor        int                 // 备份列表光标
 	modelSelectorActive bool                // 模型选择器是否激活（Claude 模型字段下拉）
@@ -195,10 +194,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 
 	case tickMsg:
-		// Only check config file changes in list mode
-		if m.mode == "list" {
-			m.checkConfigChanges()
-		}
+		// tick 用于其他周期性任务（如有），配置单向流出，不检查外部变化
 		return m, tickCmd()
 
 	case updateCheckMsg:

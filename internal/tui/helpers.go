@@ -1,8 +1,6 @@
 package tui
 
 import (
-	"errors"
-	"fmt"
 	"os"
 	"unicode"
 
@@ -128,37 +126,5 @@ func (m Model) templateCategoryDisplay(category string) string {
 func (m *Model) syncModTime() {
 	if info, err := os.Stat(m.configPath); err == nil {
 		m.lastModTime = info.ModTime()
-	}
-}
-
-// checkConfigChanges 检查配置文件是否被外部修改
-func (m *Model) checkConfigChanges() {
-	info, err := os.Stat(m.configPath)
-	if err != nil {
-		// Config file doesn't exist or can't be accessed
-		if !m.configCorrupted {
-			m.configCorrupted = true
-			m.err = errors.New("配置文件不可访问，请使用 'backup restore' 命令恢复")
-			m.message = ""
-		}
-		return
-	}
-
-	modTime := info.ModTime()
-	if modTime.After(m.lastModTime) {
-		// Config file was modified externally, reload
-		m.lastModTime = modTime
-
-		// Try to reload config
-		if err := m.manager.Load(); err != nil {
-			m.configCorrupted = true
-			m.err = fmt.Errorf("配置文件损坏: %v。请使用 'backup restore' 恢复", err)
-			m.message = ""
-		} else {
-			m.configCorrupted = false
-			m.refreshProviders()
-			m.message = "配置已从外部更新刷新"
-			m.err = nil
-		}
 	}
 }
