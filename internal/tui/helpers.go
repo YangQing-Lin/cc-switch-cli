@@ -77,6 +77,8 @@ func (m *Model) syncColumnCursors() {
 
 	// 同步当前应用的光标位置到对应列
 	m.columnCursors[m.columnCursor] = m.cursor
+	// 同步期望行位置
+	m.desiredRow = m.cursor
 }
 
 // saveViewModePreference 静默保存视图模式偏好

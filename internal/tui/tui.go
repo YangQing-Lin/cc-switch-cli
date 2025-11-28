@@ -81,6 +81,7 @@ type Model struct {
 	columnCursor    int                  // 当前聚焦的列索引 (0=Claude, 1=Codex, 2=Gemini)
 	columnCursors   [3]int               // 每列独立的行光标位置
 	columnProviders [3][]config.Provider // 三列各自的配置列表缓存
+	desiredRow      int                  // 期望行位置，仅上下移动时更新，左右移动时保持
 
 	// MCP 管理相关字段
 	mcpServers      []config.McpServer // MCP 服务器列表

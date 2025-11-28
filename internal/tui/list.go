@@ -336,17 +336,37 @@ func (m Model) handleMultiColumnKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 	case "left", "h":
+		// 切换列
 		if m.columnCursor > 0 {
 			m.columnCursor--
 		} else {
 			m.columnCursor = 2 // 循环
 		}
+		// 使用期望行位置：若目标列行数不足则显示在最后一行，但不更新 desiredRow
+		targetLen := len(m.columnProviders[m.columnCursor])
+		if targetLen > 0 {
+			if m.desiredRow >= targetLen {
+				m.columnCursors[m.columnCursor] = targetLen - 1
+			} else {
+				m.columnCursors[m.columnCursor] = m.desiredRow
+			}
+		}
 
 	case "right":
+		// 切换列
 		if m.columnCursor < 2 {
 			m.columnCursor++
 		} else {
 			m.columnCursor = 0 // 循环
+		}
+		// 使用期望行位置：若目标列行数不足则显示在最后一行，但不更新 desiredRow
+		targetLen := len(m.columnProviders[m.columnCursor])
+		if targetLen > 0 {
+			if m.desiredRow >= targetLen {
+				m.columnCursors[m.columnCursor] = targetLen - 1
+			} else {
+				m.columnCursors[m.columnCursor] = m.desiredRow
+			}
 		}
 
 	case "up", "k":
@@ -357,6 +377,8 @@ func (m Model) handleMultiColumnKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			} else {
 				m.columnCursors[col] = len(m.columnProviders[col]) - 1 // 循环
 			}
+			// 更新期望行位置
+			m.desiredRow = m.columnCursors[col]
 		}
 
 	case "down", "j":
@@ -367,6 +389,8 @@ func (m Model) handleMultiColumnKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			} else {
 				m.columnCursors[col] = 0 // 循环
 			}
+			// 更新期望行位置
+			m.desiredRow = m.columnCursors[col]
 		}
 
 	case "enter":
