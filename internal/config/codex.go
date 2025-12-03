@@ -42,6 +42,5 @@ disable_response_storage = true
 name = "%s"
 base_url = "%s"
 wire_api = "responses"
-env_key = "custom"
 requires_openai_auth = true`, cleanName, modelName, reasoning, cleanName, escapedDisplayName, escapedBaseURL)
 }
