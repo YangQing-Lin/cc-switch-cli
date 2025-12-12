@@ -42,6 +42,7 @@ var (
 		{Label: "gpt-5", Value: "gpt-5"},
 		{Label: "gpt-5.1-codex", Value: "gpt-5.1-codex"},
 		{Label: "gpt-5.1-codex-max", Value: "gpt-5.1-codex-max"},
+		{Label: "gpt-5.2", Value: "gpt-5.2"},
 	}
 
 	codexReasoningSelectorOptions = []selectorOption{
