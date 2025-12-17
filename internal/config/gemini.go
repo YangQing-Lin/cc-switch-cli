@@ -119,7 +119,29 @@ func NormalizeGeminiEnv(provider *Provider) map[string]string {
 	return result
 }
 
-// writeGeminiEnvFile 写入 Gemini .env 文件
+// parseEnvFile 解析 .env 文件内容，返回环境变量 map 和原始行列表
+// 保留注释和空行的顺序信息
+func parseEnvFile(content string) (envVars map[string]string, lines []string) {
+	envVars = make(map[string]string)
+	lines = strings.Split(content, "\n")
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		// 跳过空行和注释
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		// 解析 KEY=VALUE 格式
+		if idx := strings.Index(line, "="); idx > 0 {
+			key := strings.TrimSpace(line[:idx])
+			value := line[idx+1:]
+			envVars[key] = value
+		}
+	}
+	return
+}
+
+// writeGeminiEnvFile 写入 Gemini .env 文件（增量更新，只修改三个特定变量）
 func (m *Manager) writeGeminiEnvFile(envMap map[string]string) error {
 	envPath, err := m.GetGeminiEnvPathWithDir()
 	if err != nil {
@@ -132,40 +154,93 @@ func (m *Manager) writeGeminiEnvFile(envMap map[string]string) error {
 		return fmt.Errorf("创建目录失败: %w", err)
 	}
 
-	// 生成 .env 文件内容（KEY=VALUE 格式）
-	var lines []string
-	lines = append(lines, "# Gemini CLI 配置")
-	lines = append(lines, "# 由 CC-Switch 自动生成")
-	lines = append(lines, "")
+	// 需要更新的三个标准变量
+	targetKeys := []string{"GOOGLE_GEMINI_BASE_URL", "GEMINI_API_KEY", "GEMINI_MODEL"}
 
-	// 按固定顺序写入标准变量
-	if val, ok := envMap["GEMINI_API_KEY"]; ok {
-		lines = append(lines, fmt.Sprintf("GEMINI_API_KEY=%s", val))
-	}
-	if val, ok := envMap["GOOGLE_GEMINI_API_KEY"]; ok {
-		lines = append(lines, fmt.Sprintf("GOOGLE_GEMINI_API_KEY=%s", val))
-	}
-	if val, ok := envMap["GOOGLE_GEMINI_BASE_URL"]; ok {
-		lines = append(lines, fmt.Sprintf("GOOGLE_GEMINI_BASE_URL=%s", val))
-	}
-	if val, ok := envMap["GEMINI_MODEL"]; ok {
-		lines = append(lines, fmt.Sprintf("GEMINI_MODEL=%s", val))
+	// 读取现有的 .env 文件
+	var existingContent string
+	if utils.FileExists(envPath) {
+		data, err := os.ReadFile(envPath)
+		if err != nil {
+			return fmt.Errorf("读取现有 .env 文件失败: %w", err)
+		}
+		existingContent = string(data)
 	}
 
-	// 写入其他自定义变量
-	standardKeys := map[string]bool{
-		"GEMINI_API_KEY":         true,
-		"GOOGLE_GEMINI_API_KEY":  true,
-		"GOOGLE_GEMINI_BASE_URL": true,
-		"GEMINI_MODEL":           true,
-	}
-	for key, val := range envMap {
-		if !standardKeys[key] {
-			lines = append(lines, fmt.Sprintf("%s=%s", key, val))
+	// 解析现有内容
+	existingVars, originalLines := parseEnvFile(existingContent)
+
+	// 更新三个特定变量
+	for _, key := range targetKeys {
+		if val, ok := envMap[key]; ok && val != "" {
+			existingVars[key] = val
 		}
 	}
 
-	content := strings.Join(lines, "\n") + "\n"
+	// 重新生成文件内容，保留原有行结构
+	var outputLines []string
+	updatedKeys := make(map[string]bool)
+
+	// 遍历原始行，更新已有变量
+	for _, line := range originalLines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			outputLines = append(outputLines, line)
+			continue
+		}
+		if idx := strings.Index(line, "="); idx > 0 {
+			key := strings.TrimSpace(line[:idx])
+			// 检查是否是目标变量
+			isTargetKey := false
+			for _, tk := range targetKeys {
+				if key == tk {
+					isTargetKey = true
+					break
+				}
+			}
+			if isTargetKey {
+				if val, ok := existingVars[key]; ok && val != "" {
+					outputLines = append(outputLines, fmt.Sprintf("%s=%s", key, val))
+					updatedKeys[key] = true
+				}
+				// 如果值为空，跳过该行（删除）
+			} else {
+				// 保留非目标变量
+				outputLines = append(outputLines, line)
+			}
+		} else {
+			outputLines = append(outputLines, line)
+		}
+	}
+
+	// 添加新的目标变量（之前不存在的）
+	for _, key := range targetKeys {
+		if !updatedKeys[key] {
+			if val, ok := existingVars[key]; ok && val != "" {
+				outputLines = append(outputLines, fmt.Sprintf("%s=%s", key, val))
+			}
+		}
+	}
+
+	// 如果文件原本为空，添加头部注释
+	if len(originalLines) == 0 || (len(originalLines) == 1 && originalLines[0] == "") {
+		outputLines = []string{
+			"# Gemini CLI 配置",
+			"# 由 CC-Switch 自动生成",
+			"",
+		}
+		for _, key := range targetKeys {
+			if val, ok := existingVars[key]; ok && val != "" {
+				outputLines = append(outputLines, fmt.Sprintf("%s=%s", key, val))
+			}
+		}
+	}
+
+	content := strings.Join(outputLines, "\n")
+	// 确保文件以换行符结尾
+	if !strings.HasSuffix(content, "\n") {
+		content += "\n"
+	}
 
 	// 原子写入，权限 0600
 	return utils.AtomicWriteFile(envPath, []byte(content), 0600)

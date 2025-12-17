@@ -92,15 +92,9 @@ func (m *Manager) GetConfigPath() string {
 }
 
 // GetGeminiDir returns the Gemini configuration directory
+// 注意：Gemini CLI 的 live 配置始终在用户主目录 ~/.gemini/，不受便携模式影响
+// 因为 Gemini CLI 本身不支持便携模式，它只读取 ~/.gemini/.env
 func GetGeminiDir() (string, error) {
-	if portable.IsPortableMode() {
-		configDir, err := portable.GetPortableConfigDir()
-		if err != nil {
-			return "", fmt.Errorf("获取便携版配置目录失败: %w", err)
-		}
-		return filepath.Join(configDir, ".gemini"), nil
-	}
-
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("获取用户主目录失败: %w", err)
@@ -128,6 +122,7 @@ func GetGeminiSettingsPath() (string, error) {
 }
 
 // GetGeminiEnvPathWithDir returns the Gemini .env file path with custom directory support
+// customDir 仅用于单元测试隔离，实际使用时为空
 func (m *Manager) GetGeminiEnvPathWithDir() (string, error) {
 	if m.customDir == "" {
 		return GetGeminiEnvPath()
@@ -136,6 +131,7 @@ func (m *Manager) GetGeminiEnvPathWithDir() (string, error) {
 }
 
 // GetGeminiSettingsPathWithDir returns the Gemini settings.json path with custom directory support
+// customDir 仅用于单元测试隔离，实际使用时为空
 func (m *Manager) GetGeminiSettingsPathWithDir() (string, error) {
 	if m.customDir == "" {
 		return GetGeminiSettingsPath()
