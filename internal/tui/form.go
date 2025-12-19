@@ -57,6 +57,7 @@ var (
 		{Label: "gemini-2.5-pro", Value: "gemini-2.5-pro"},
 		{Label: "gemini-2.5-flash", Value: "gemini-2.5-flash"},
 		{Label: "gemini-3-pro-preview", Value: "gemini-3-pro-preview"},
+		{Label: "gemini-3-flash-preview", Value: "gemini-3-flash-preview"},
 	}
 
 	codexConfigBaseURLRegex   = regexp.MustCompile(`base_url\s*=\s*"([^"]+)"`)
