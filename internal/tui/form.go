@@ -667,7 +667,7 @@ func (m *Model) initForm(provider *config.Provider) {
 		m.inputs[1].Placeholder = "sk-ant-xxxxx"
 	}
 	m.inputs[1].EchoMode = textinput.EchoPassword
-	m.inputs[1].CharLimit = 500
+	m.inputs[1].CharLimit = 1000
 	m.inputs[1].Width = 55
 	m.applyTokenVisibility()
 
