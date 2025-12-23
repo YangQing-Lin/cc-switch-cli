@@ -6,7 +6,13 @@
       "Bash(go build:*)",
       "Skill(codex)",
       "Bash(uv run:*)",
-      "Bash(go mod tidy:*)"
+      "Bash(go mod tidy:*)",
+      "Bash(go version)",
+      "Skill(codeagent)",
+      "Bash(codeagent-wrapper:*)",
+      "Bash(go tool cover:*)",
+      "Bash(find:*)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": [
