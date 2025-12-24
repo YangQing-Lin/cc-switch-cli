@@ -12,7 +12,8 @@
       "Bash(codeagent-wrapper:*)",
       "Bash(go tool cover:*)",
       "Bash(find:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(export GOCACHE=/home/luke/ProjectGo/cc-switch-cli/.gocache)"
     ],
     "deny": [],
     "ask": [
