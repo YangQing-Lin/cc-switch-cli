@@ -20,6 +20,8 @@ var (
 	defaultSonnetModel string
 )
 
+var readPassword = term.ReadPassword
+
 var addCmd = &cobra.Command{
 	Use:   "add <配置名称>",
 	Short: "添加新的配置",
@@ -100,7 +102,7 @@ func promptSecret(prompt string) (string, error) {
 
 	// 使用 term.ReadPassword 隐藏输入
 	fd := int(os.Stdin.Fd())
-	bytePassword, err := term.ReadPassword(fd)
+	bytePassword, err := readPassword(fd)
 	if err != nil {
 		// 降级处理：如果隐藏输入失败，使用明文输入
 		reader := bufio.NewReader(os.Stdin)

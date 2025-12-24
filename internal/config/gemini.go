@@ -126,15 +126,33 @@ func parseEnvFile(content string) (envVars map[string]string, lines []string) {
 	lines = strings.Split(content, "\n")
 
 	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
+		trimmedLine := strings.TrimSpace(line)
 		// 跳过空行和注释
-		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+		if trimmedLine == "" || strings.HasPrefix(trimmedLine, "#") {
 			continue
 		}
-		// 解析 KEY=VALUE 格式
-		if idx := strings.Index(line, "="); idx > 0 {
-			key := strings.TrimSpace(line[:idx])
-			value := line[idx+1:]
+
+		// 兼容 "export KEY=VALUE"
+		fields := strings.Fields(trimmedLine)
+		if len(fields) > 0 && fields[0] == "export" {
+			trimmedLine = strings.TrimSpace(strings.TrimPrefix(trimmedLine, "export"))
+			if trimmedLine == "" {
+				continue
+			}
+		}
+
+		// 解析 KEY=VALUE 格式（仅按第一个 '=' 分割）
+		if idx := strings.Index(trimmedLine, "="); idx > 0 {
+			key := strings.TrimSpace(trimmedLine[:idx])
+			if key == "" {
+				continue
+			}
+			value := strings.TrimSpace(trimmedLine[idx+1:])
+			if len(value) >= 2 {
+				if (value[0] == '"' && value[len(value)-1] == '"') || (value[0] == '\'' && value[len(value)-1] == '\'') {
+					value = value[1 : len(value)-1]
+				}
+			}
 			envVars[key] = value
 		}
 	}

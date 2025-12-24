@@ -40,7 +40,7 @@ func runApplyTemplate(templateID string) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		color.Red("Error: Failed to get home directory: %v", err)
-		os.Exit(1)
+		exitFunc(1)
 	}
 
 	configPath := filepath.Join(homeDir, ".cc-switch", "claude_templates.json")
@@ -49,14 +49,14 @@ func runApplyTemplate(templateID string) {
 	tm, err := template.NewTemplateManager(configPath)
 	if err != nil {
 		color.Red("Error: Failed to initialize template manager: %v", err)
-		os.Exit(1)
+		exitFunc(1)
 	}
 
 	// 验证模板存在
 	tpl, err := tm.GetTemplate(templateID)
 	if err != nil {
 		color.Red("Error: %v", err)
-		os.Exit(1)
+		exitFunc(1)
 	}
 
 	// 获取目标路径
@@ -66,11 +66,11 @@ func runApplyTemplate(templateID string) {
 		target, err := template.GetTargetByID(applyTarget)
 		if err != nil {
 			color.Red("Error: Failed to get target: %v", err)
-			os.Exit(1)
+			exitFunc(1)
 		}
 		if target == nil {
 			color.Red("Error: Invalid target ID: %s", applyTarget)
-			os.Exit(1)
+			exitFunc(1)
 		}
 		targetPath = target.Path
 	} else {
@@ -78,7 +78,7 @@ func runApplyTemplate(templateID string) {
 		target, err := selectTarget()
 		if err != nil {
 			color.Red("Error: %v", err)
-			os.Exit(1)
+			exitFunc(1)
 		}
 		targetPath = target.Path
 	}
@@ -88,7 +88,7 @@ func runApplyTemplate(templateID string) {
 		diff, err := tm.GetDiff(templateID, targetPath)
 		if err != nil {
 			color.Red("Error: Failed to generate diff: %v", err)
-			os.Exit(1)
+			exitFunc(1)
 		}
 
 		color.Cyan("\n=== Diff Preview ===")
@@ -104,7 +104,7 @@ func runApplyTemplate(templateID string) {
 	// 应用模板
 	if err := tm.ApplyTemplate(templateID, targetPath); err != nil {
 		color.Red("Error: Failed to apply template: %v", err)
-		os.Exit(1)
+		exitFunc(1)
 	}
 
 	color.Green("✓ Template '%s' applied to: %s", tpl.Name, targetPath)

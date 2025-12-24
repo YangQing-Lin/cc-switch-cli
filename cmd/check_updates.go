@@ -18,6 +18,8 @@ var checkUpdatesCmd = &cobra.Command{
 	},
 }
 
+var checkUpdatesGOOS = runtime.GOOS
+
 func init() {
 	rootCmd.AddCommand(checkUpdatesCmd)
 }
@@ -30,7 +32,7 @@ func runCheckUpdates() error {
 
 	// 根据操作系统打开浏览器
 	var openCmd *exec.Cmd
-	switch runtime.GOOS {
+	switch checkUpdatesGOOS {
 	case "windows":
 		openCmd = exec.Command("cmd", "/c", "start", url)
 	case "darwin":

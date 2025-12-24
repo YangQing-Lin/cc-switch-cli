@@ -22,6 +22,10 @@ func ValidateProvider(name, apiToken, baseURL string) error {
 		return fmt.Errorf("API Token 不能为空")
 	}
 
+	if len(apiToken) > 1000 {
+		return fmt.Errorf("API Token 长度不能超过 1000")
+	}
+
 	if !strings.HasPrefix(apiToken, "sk-") && !strings.HasPrefix(apiToken, "88_") {
 		return fmt.Errorf("API Token 格式错误，应以 'sk-' 或 '88_' 开头")
 	}
@@ -30,8 +34,12 @@ func ValidateProvider(name, apiToken, baseURL string) error {
 		return fmt.Errorf("Base URL 不能为空")
 	}
 
-	if _, err := url.Parse(baseURL); err != nil {
+	parsedURL, err := url.Parse(baseURL)
+	if err != nil {
 		return fmt.Errorf("无效的 Base URL: %w", err)
+	}
+	if parsedURL.Scheme == "" || parsedURL.Host == "" {
+		return fmt.Errorf("无效的 Base URL: 缺少协议或主机")
 	}
 
 	return nil

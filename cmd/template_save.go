@@ -38,7 +38,7 @@ func runSaveTemplate() {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		color.Red("Error: Failed to get home directory: %v", err)
-		os.Exit(1)
+		exitFunc(1)
 	}
 
 	configPath := filepath.Join(homeDir, ".cc-switch", "claude_templates.json")
@@ -47,7 +47,7 @@ func runSaveTemplate() {
 	tm, err := template.NewTemplateManager(configPath)
 	if err != nil {
 		color.Red("Error: Failed to initialize template manager: %v", err)
-		os.Exit(1)
+		exitFunc(1)
 	}
 
 	// 获取源路径
@@ -57,11 +57,11 @@ func runSaveTemplate() {
 		target, err := template.GetTargetByID(saveFrom)
 		if err != nil {
 			color.Red("Error: Failed to get target: %v", err)
-			os.Exit(1)
+			exitFunc(1)
 		}
 		if target == nil {
 			color.Red("Error: Invalid source ID: %s", saveFrom)
-			os.Exit(1)
+			exitFunc(1)
 		}
 		sourcePath = target.Path
 	} else {
@@ -69,7 +69,7 @@ func runSaveTemplate() {
 		target, err := selectSourcePath()
 		if err != nil {
 			color.Red("Error: %v", err)
-			os.Exit(1)
+			exitFunc(1)
 		}
 		sourcePath = target.Path
 	}
@@ -77,7 +77,7 @@ func runSaveTemplate() {
 	// 检查源文件是否存在
 	if _, err := os.Stat(sourcePath); os.IsNotExist(err) {
 		color.Red("Error: Source file does not exist: %s", sourcePath)
-		os.Exit(1)
+		exitFunc(1)
 	}
 
 	// 获取模板名称
@@ -92,7 +92,7 @@ func runSaveTemplate() {
 	id, err := tm.SaveAsTemplate(sourcePath, templateName, template.CategoryClaudeMd)
 	if err != nil {
 		color.Red("Error: Failed to save template: %v", err)
-		os.Exit(1)
+		exitFunc(1)
 	}
 
 	color.Green("✓ Template saved successfully")

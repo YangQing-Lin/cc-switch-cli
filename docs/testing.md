@@ -1,7 +1,7 @@
 # CC-Switch CLI 测试文档
 
 > 项目测试指南和测试结构说明
-> 最后更新: 2025-10-02
+> 最后更新: 2025-12-24
 
 ## 测试概述
 
@@ -258,16 +258,37 @@ func TestExample(t *testing.T) {
 }
 ```
 
-## 测试覆盖率目标
+## 测试覆盖率
 
-| 包 | 当前覆盖率 | 目标覆盖率 |
-|---|-----------|----------|
-| internal/utils | 69.7% | 80% |
-| internal/settings | 82.4% | 85% |
-| internal/i18n | 60.0% | 70% |
-| internal/config | 32.1% | 60% |
-| internal/vscode | 25.0% | 50% |
-| **平均** | **53.8%** | **69%** |
+### 当前覆盖率 (2025-12-24)
+
+| 包 | 覆盖率 | 状态 |
+|---|------:|:----:|
+| main | 100.0% | ✅ |
+| cmd | 78.3% | ⚠️ |
+| internal/backup | 88.2% | ⚠️ |
+| internal/claude | 80.3% | ⚠️ |
+| internal/config | 90.0% | ✅ |
+| internal/i18n | 100.0% | ✅ |
+| internal/lock | 90.5% | ✅ |
+| internal/portable | 86.7% | ⚠️ |
+| internal/settings | 94.1% | ✅ |
+| internal/template | 91.9% | ✅ |
+| internal/testutil | 79.5% | ⚠️ |
+| internal/tui | 89.9% | ✅ |
+| internal/utils | 80.3% | ⚠️ |
+| internal/version | 91.3% | ✅ |
+| **总计** | **89.7%** | ⚠️ |
+
+### CI 覆盖率门禁
+
+项目设置了 **89%** 的覆盖率阈值，低于此值的 PR 将无法合并。
+
+```bash
+# 本地检查覆盖率
+go test ./... -coverprofile=coverage.out
+go tool cover -func=coverage.out | grep total
+```
 
 ## 集成测试
 
@@ -354,32 +375,47 @@ go test -v ./test/integration/... -timeout=60s
 
 ## 持续集成
 
-### GitHub Actions 配置示例
+### GitHub Actions 工作流
 
-```yaml
-name: Tests
+项目配置了自动化测试工作流 (`.github/workflows/test.yml`)：
 
-on: [push, pull_request]
+**触发条件:**
+- 推送到 `master` 或 `dev` 分支
+- 提交 PR 到 `master` 分支
 
-jobs:
-  test:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        go: ['1.21']
+**工作流程:**
 
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-go@v4
-        with:
-          go-version: ${{ matrix.go }}
+1. **多平台测试** (`test` job)
+   - 在 Ubuntu、macOS、Windows 上并行运行
+   - 执行 `go vet` 静态检查
+   - 执行 `gofmt` 格式检查 (仅 Linux)
+   - 运行带 race detector 的测试
+   - 编译验证
 
-      - name: Run tests
-        run: go test -v -cover ./...
+2. **覆盖率门禁** (`coverage` job)
+   - 生成覆盖率报告
+   - 检查覆盖率是否达到 89% 阈值
+   - 上传覆盖率报告到 Artifacts
+   - 在 PR Summary 中显示覆盖率表格
 
-      - name: Generate coverage
-        run: go test -coverprofile=coverage.out ./...
+### 本地验证
+
+在提交前执行以下命令确保 CI 能通过：
+
+```bash
+# 格式化代码
+go fmt ./...
+
+# 静态检查
+go vet ./...
+
+# 运行带 race detector 的测试
+go test -race -v ./...
+
+# 检查覆盖率
+go test ./... -coverprofile=coverage.out
+COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+echo "Coverage: ${COVERAGE}%"
 ```
 
 ## 测试最佳实践

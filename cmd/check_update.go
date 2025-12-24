@@ -7,6 +7,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var checkForUpdateFunc = version.CheckForUpdate
+
 var checkUpdateCmd = &cobra.Command{
 	Use:   "check-update",
 	Short: "检查是否有新版本",
@@ -15,7 +17,7 @@ var checkUpdateCmd = &cobra.Command{
 		fmt.Printf("当前版本: %s\n", version.GetVersion())
 		fmt.Println("正在检查更新...")
 
-		release, hasUpdate, err := version.CheckForUpdate()
+		release, hasUpdate, err := checkForUpdateFunc()
 		if err != nil {
 			fmt.Printf("❌ 检查更新失败: %v\n", err)
 			return

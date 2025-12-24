@@ -32,7 +32,7 @@ func runListTemplates() {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		color.Red("Error: Failed to get home directory: %v", err)
-		os.Exit(1)
+		exitFunc(1)
 	}
 
 	configPath := filepath.Join(homeDir, ".cc-switch", "claude_templates.json")
@@ -41,7 +41,7 @@ func runListTemplates() {
 	tm, err := template.NewTemplateManager(configPath)
 	if err != nil {
 		color.Red("Error: Failed to initialize template manager: %v", err)
-		os.Exit(1)
+		exitFunc(1)
 	}
 
 	// 获取模板列表

@@ -36,7 +36,7 @@ func runDeleteTemplate(templateID string) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		color.Red("Error: Failed to get home directory: %v", err)
-		os.Exit(1)
+		exitFunc(1)
 	}
 
 	configPath := filepath.Join(homeDir, ".cc-switch", "claude_templates.json")
@@ -45,20 +45,20 @@ func runDeleteTemplate(templateID string) {
 	tm, err := template.NewTemplateManager(configPath)
 	if err != nil {
 		color.Red("Error: Failed to initialize template manager: %v", err)
-		os.Exit(1)
+		exitFunc(1)
 	}
 
 	// 验证模板存在
 	tpl, err := tm.GetTemplate(templateID)
 	if err != nil {
 		color.Red("Error: %v", err)
-		os.Exit(1)
+		exitFunc(1)
 	}
 
 	// 检查是否为预定义模板
 	if tpl.IsBuiltin {
 		color.Red("Error: Cannot delete builtin template: %s", templateID)
-		os.Exit(1)
+		exitFunc(1)
 	}
 
 	// 确认删除（除非强制）
@@ -77,7 +77,7 @@ func runDeleteTemplate(templateID string) {
 	// 删除模板
 	if err := tm.DeleteTemplate(templateID); err != nil {
 		color.Red("Error: Failed to delete template: %v", err)
-		os.Exit(1)
+		exitFunc(1)
 	}
 
 	color.Green("✓ Template '%s' deleted successfully", tpl.Name)

@@ -61,5 +61,6 @@ ccs
 .gomodcache/
 .cache/
 .cache-go/
+.gopath/
 
 build/ccs-*64

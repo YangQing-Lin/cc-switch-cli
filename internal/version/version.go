@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -18,8 +19,8 @@ import (
 // CleanupOldUpdateDirs 清理 /tmp 目录下的历史更新临时目录
 // 静默执行，失败不报错
 func CleanupOldUpdateDirs() {
-	tmpDir := os.TempDir()
-	entries, err := os.ReadDir(tmpDir)
+	tmpDir := tempDirFunc()
+	entries, err := readDirFunc(tmpDir)
 	if err != nil {
 		return // 静默失败
 	}
@@ -33,7 +34,7 @@ func CleanupOldUpdateDirs() {
 		// 匹配 ccs-update-* 和 ccs-install-* 模式
 		if strings.HasPrefix(name, "ccs-update-") || strings.HasPrefix(name, "ccs-install-") {
 			fullPath := filepath.Join(tmpDir, name)
-			_ = os.RemoveAll(fullPath) // 静默删除，忽略错误
+			_ = removeAllFunc(fullPath) // 静默删除，忽略错误
 		}
 	}
 }
@@ -51,6 +52,20 @@ const (
 	githubAPIURL     = "https://api.github.com/repos/YangQing-Lin/cc-switch-cli/releases/latest"
 	githubReleaseURL = "https://github.com/YangQing-Lin/cc-switch-cli/releases"
 	httpTimeout      = 10 * time.Second
+)
+
+var (
+	httpClientForUpdate   = func() *http.Client { return &http.Client{Timeout: httpTimeout} }
+	httpClientForDownload = func() *http.Client { return &http.Client{Timeout: 5 * time.Minute} }
+	tempDirFunc           = os.TempDir
+	readDirFunc           = os.ReadDir
+	removeAllFunc         = os.RemoveAll
+	mkdirTempFunc         = os.MkdirTemp
+	executableFunc        = os.Executable
+	evalSymlinksFunc      = filepath.EvalSymlinks
+	chmodFunc             = os.Chmod
+	renameFunc            = os.Rename
+	createFileFunc        = os.Create
 )
 
 // ReleaseInfo GitHub Release 信息
@@ -87,7 +102,7 @@ func GetGitCommit() string {
 
 // CheckForUpdate 检查是否有新版本
 func CheckForUpdate() (*ReleaseInfo, bool, error) {
-	client := &http.Client{Timeout: httpTimeout}
+	client := httpClientForUpdate()
 
 	req, err := http.NewRequest("GET", githubAPIURL, nil)
 	if err != nil {
@@ -121,9 +136,171 @@ func CheckForUpdate() (*ReleaseInfo, bool, error) {
 	latestVersion := strings.TrimPrefix(release.TagName, "v")
 	currentVersion := strings.TrimPrefix(Version, "v")
 
-	hasUpdate := latestVersion != currentVersion
+	hasUpdate := isNewerVersion(latestVersion, currentVersion)
 
 	return &release, hasUpdate, nil
+}
+
+func isNewerVersion(latestVersion, currentVersion string) bool {
+	latest, okLatest := parseSemverForCompare(latestVersion)
+	current, okCurrent := parseSemverForCompare(currentVersion)
+	if !okLatest || !okCurrent {
+		return normalizeVersion(latestVersion) != normalizeVersion(currentVersion)
+	}
+	return compareSemver(latest, current) > 0
+}
+
+func normalizeVersion(version string) string {
+	normalized := strings.TrimPrefix(version, "v")
+	normalized = strings.SplitN(normalized, "+", 2)[0]
+	normalized = strings.SplitN(normalized, "-", 2)[0]
+	return normalized
+}
+
+type semverForCompare struct {
+	core          [3]int
+	preReleaseIDs []string
+	hasPreRelease bool
+}
+
+func parseSemverForCompare(version string) (semverForCompare, bool) {
+	var parsed semverForCompare
+	normalized := strings.TrimPrefix(version, "v")
+	normalized = strings.SplitN(normalized, "+", 2)[0]
+
+	corePart, prePart, hasPreRelease := strings.Cut(normalized, "-")
+	core, ok := parseSemverParts(corePart)
+	if !ok {
+		return parsed, false
+	}
+
+	parsed.core = core
+	parsed.hasPreRelease = hasPreRelease
+	if hasPreRelease {
+		// Keep empty identifiers if the input is malformed; semver comparison will
+		// still treat a pre-release as lower precedence than a release.
+		parsed.preReleaseIDs = strings.Split(prePart, ".")
+	}
+	return parsed, true
+}
+
+func compareSemver(a, b semverForCompare) int {
+	for i := 0; i < len(a.core); i++ {
+		if a.core[i] > b.core[i] {
+			return 1
+		}
+		if a.core[i] < b.core[i] {
+			return -1
+		}
+	}
+
+	// SemVer rule: release > pre-release when core is equal.
+	switch {
+	case !a.hasPreRelease && !b.hasPreRelease:
+		return 0
+	case !a.hasPreRelease && b.hasPreRelease:
+		return 1
+	case a.hasPreRelease && !b.hasPreRelease:
+		return -1
+	default:
+		return comparePreRelease(a.preReleaseIDs, b.preReleaseIDs)
+	}
+}
+
+func comparePreRelease(aIDs, bIDs []string) int {
+	max := len(aIDs)
+	if len(bIDs) < max {
+		max = len(bIDs)
+	}
+
+	for i := 0; i < max; i++ {
+		if aIDs[i] == bIDs[i] {
+			continue
+		}
+
+		aNum, aIsNum := parseSemverNumericIdentifier(aIDs[i])
+		bNum, bIsNum := parseSemverNumericIdentifier(bIDs[i])
+
+		switch {
+		case aIsNum && bIsNum:
+			if aNum > bNum {
+				return 1
+			}
+			if aNum < bNum {
+				return -1
+			}
+		case aIsNum && !bIsNum:
+			// Numeric identifiers have lower precedence than non-numeric.
+			return -1
+		case !aIsNum && bIsNum:
+			return 1
+		default:
+			if cmp := strings.Compare(aIDs[i], bIDs[i]); cmp != 0 {
+				if cmp > 0 {
+					return 1
+				}
+				return -1
+			}
+		}
+	}
+
+	// If all identifiers are equal, shorter pre-release has lower precedence.
+	switch {
+	case len(aIDs) > len(bIDs):
+		return 1
+	case len(aIDs) < len(bIDs):
+		return -1
+	default:
+		return 0
+	}
+}
+
+func parseSemverNumericIdentifier(s string) (int, bool) {
+	if s == "" {
+		return 0, false
+	}
+	for i := 0; i < len(s); i++ {
+		if s[i] < '0' || s[i] > '9' {
+			return 0, false
+		}
+	}
+	// SemVer: numeric identifiers must not include leading zeros.
+	if len(s) > 1 && s[0] == '0' {
+		return 0, false
+	}
+	value, err := strconv.Atoi(s)
+	if err != nil {
+		return 0, false
+	}
+	return value, true
+}
+
+func parseSemverParts(version string) ([3]int, bool) {
+	var parts [3]int
+	if version == "" {
+		return parts, false
+	}
+
+	tokens := strings.Split(version, ".")
+	if len(tokens) == 0 {
+		return parts, false
+	}
+
+	for i := 0; i < len(parts); i++ {
+		if i >= len(tokens) {
+			break
+		}
+		if tokens[i] == "" {
+			return parts, false
+		}
+		value, err := strconv.Atoi(tokens[i])
+		if err != nil {
+			return parts, false
+		}
+		parts[i] = value
+	}
+
+	return parts, true
 }
 
 // UpdateError 自定义更新错误类型，包含失败原因和下载地址
@@ -158,14 +335,14 @@ func DownloadUpdate(release *ReleaseInfo) error {
 	}
 
 	// 创建临时目录
-	tmpDir, err := os.MkdirTemp("", "ccs-update-*")
+	tmpDir, err := mkdirTempFunc("", "ccs-update-*")
 	if err != nil {
 		return &UpdateError{
 			Reason:      fmt.Sprintf("创建临时目录失败: %v (可能磁盘空间不足或权限不足)", err),
 			DownloadURL: githubReleaseURL,
 		}
 	}
-	defer os.RemoveAll(tmpDir)
+	defer removeAllFunc(tmpDir)
 
 	// 下载压缩包到临时目录
 	archivePath := filepath.Join(tmpDir, archiveName)
@@ -185,7 +362,7 @@ func DownloadUpdate(release *ReleaseInfo) error {
 // skipPlatformCheck: 是否跳过平台验证
 func InstallBinary(sourcePath string, skipPlatformCheck bool) error {
 	// 获取当前可执行文件路径
-	exePath, err := os.Executable()
+	exePath, err := executableFunc()
 	if err != nil {
 		return &UpdateError{
 			Reason:      fmt.Sprintf("获取可执行文件路径失败: %v", err),
@@ -194,7 +371,7 @@ func InstallBinary(sourcePath string, skipPlatformCheck bool) error {
 	}
 
 	// 解析符号链接
-	exePath, err = filepath.EvalSymlinks(exePath)
+	exePath, err = evalSymlinksFunc(exePath)
 	if err != nil {
 		return &UpdateError{
 			Reason:      fmt.Sprintf("解析符号链接失败: %v", err),
@@ -203,14 +380,14 @@ func InstallBinary(sourcePath string, skipPlatformCheck bool) error {
 	}
 
 	// 创建临时目录用于解压
-	tmpDir, err := os.MkdirTemp("", "ccs-install-*")
+	tmpDir, err := mkdirTempFunc("", "ccs-install-*")
 	if err != nil {
 		return &UpdateError{
 			Reason:      fmt.Sprintf("创建临时目录失败: %v (可能磁盘空间不足或权限不足)", err),
 			DownloadURL: githubReleaseURL,
 		}
 	}
-	defer os.RemoveAll(tmpDir)
+	defer removeAllFunc(tmpDir)
 
 	var binaryPath string
 
@@ -253,7 +430,7 @@ func InstallBinary(sourcePath string, skipPlatformCheck bool) error {
 
 	// 设置可执行权限 (Unix-like 系统)
 	if runtime.GOOS != "windows" {
-		if err := os.Chmod(binaryPath, 0755); err != nil {
+		if err := chmodFunc(binaryPath, 0755); err != nil {
 			return &UpdateError{
 				Reason:      fmt.Sprintf("设置可执行权限失败: %v", err),
 				DownloadURL: githubReleaseURL,
@@ -263,7 +440,7 @@ func InstallBinary(sourcePath string, skipPlatformCheck bool) error {
 
 	// 备份当前版本
 	backupPath := exePath + ".old"
-	if err := os.Rename(exePath, backupPath); err != nil {
+	if err := renameFunc(exePath, backupPath); err != nil {
 		return &UpdateError{
 			Reason:      fmt.Sprintf("备份当前版本失败: %v (可能程序正在运行或权限不足)", err),
 			DownloadURL: githubReleaseURL,
@@ -271,9 +448,9 @@ func InstallBinary(sourcePath string, skipPlatformCheck bool) error {
 	}
 
 	// 移动新版本到位
-	if err := os.Rename(binaryPath, exePath); err != nil {
+	if err := renameFunc(binaryPath, exePath); err != nil {
 		// 恢复备份
-		os.Rename(backupPath, exePath)
+		renameFunc(backupPath, exePath)
 		return &UpdateError{
 			Reason:      fmt.Sprintf("安装新版本失败: %v (已恢复原版本)", err),
 			DownloadURL: githubReleaseURL,
@@ -339,7 +516,7 @@ func extractTarGz(archivePath, destDir string) (string, error) {
 		// 只提取二进制文件
 		if filepath.Base(header.Name) == binaryName {
 			targetPath := filepath.Join(destDir, binaryName)
-			outFile, err := os.Create(targetPath)
+			outFile, err := createFileFunc(targetPath)
 			if err != nil {
 				return "", err
 			}
@@ -375,7 +552,7 @@ func extractZip(archivePath, destDir string) (string, error) {
 			defer rc.Close()
 
 			targetPath := filepath.Join(destDir, binaryName)
-			outFile, err := os.Create(targetPath)
+			outFile, err := createFileFunc(targetPath)
 			if err != nil {
 				return "", err
 			}
@@ -394,7 +571,7 @@ func extractZip(archivePath, destDir string) (string, error) {
 
 // downloadFile 下载文件
 func downloadFile(filepath string, url string) error {
-	client := &http.Client{Timeout: 5 * time.Minute}
+	client := httpClientForDownload()
 
 	resp, err := client.Get(url)
 	if err != nil {
@@ -407,7 +584,7 @@ func downloadFile(filepath string, url string) error {
 	}
 
 	// 创建文件
-	out, err := os.Create(filepath)
+	out, err := createFileFunc(filepath)
 	if err != nil {
 		return fmt.Errorf("创建文件失败: %w", err)
 	}

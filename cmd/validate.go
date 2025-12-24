@@ -319,6 +319,10 @@ func validateClaudeProvider(appName string, provider config.Provider, issues, wa
 // validateCodexProvider 验证 Codex 供应商配置
 func validateCodexProvider(appName string, provider config.Provider, issues, warnings *[]ValidationIssue) {
 	// TODO: 实现 Codex 验证
+	_ = appName
+	_ = provider
+	_ = issues
+	_ = warnings
 }
 
 // displayIssue 显示问题
