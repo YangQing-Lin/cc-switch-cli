@@ -20,6 +20,16 @@ import (
 var configDir string
 var noLock bool
 
+// tuiRunner 是实际启动 TUI 的函数，可在测试中替换
+var tuiRunner = func(manager *config.Manager) error {
+	model := tui.New(manager)
+	p := tea.NewProgram(model, tea.WithAltScreen())
+	if _, err := p.Run(); err != nil {
+		return fmt.Errorf("运行 TUI 失败: %w", err)
+	}
+	return nil
+}
+
 var rootCmd = &cobra.Command{
 	Use:   "cc-switch [配置名称]",
 	Short: "Claude 中转站配置管理工具",
@@ -188,10 +198,5 @@ func startTUI(manager *config.Manager) error {
 		defer instanceLock.Release()
 	}
 
-	model := tui.New(manager)
-	p := tea.NewProgram(model, tea.WithAltScreen())
-	if _, err := p.Run(); err != nil {
-		return fmt.Errorf("运行 TUI 失败: %w", err)
-	}
-	return nil
+	return tuiRunner(manager)
 }

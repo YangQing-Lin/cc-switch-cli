@@ -13,7 +13,9 @@
       "Bash(go tool cover:*)",
       "Bash(find:*)",
       "Bash(cat:*)",
-      "Bash(export GOCACHE=/home/luke/ProjectGo/cc-switch-cli/.gocache)"
+      "Bash(export GOCACHE=/home/luke/ProjectGo/cc-switch-cli/.gocache)",
+      "Bash(timeout 30 go test:*)",
+      "Bash(timeout 60 go test:*)"
     ],
     "deny": [],
     "ask": [

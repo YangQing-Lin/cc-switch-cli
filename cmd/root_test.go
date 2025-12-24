@@ -38,6 +38,18 @@ func resetGlobals() {
 	addCategory = template.CategoryClaudeMd
 }
 
+// mockTUIRunner 替换 tuiRunner 为 mock，返回 cleanup 函数
+func mockTUIRunner(t *testing.T) {
+	t.Helper()
+	original := tuiRunner
+	tuiRunner = func(manager *config.Manager) error {
+		return nil // mock: 不启动真实 TUI
+	}
+	t.Cleanup(func() {
+		tuiRunner = original
+	})
+}
+
 func resetFlags(cmd *cobra.Command) {
 	resetFlagSet(cmd.Flags())
 	resetFlagSet(cmd.PersistentFlags())
@@ -505,6 +517,7 @@ func TestGetConfigManagerWithDir(t *testing.T) {
 
 func TestStartTUICancelledWhenLocked(t *testing.T) {
 	resetGlobals()
+	mockTUIRunner(t) // 避免启动真实 TUI
 	home := withTempHome(t)
 	removePortableMarker(t)
 
@@ -532,6 +545,7 @@ func TestStartTUICancelledWhenLocked(t *testing.T) {
 
 func TestStartTUILockError(t *testing.T) {
 	resetGlobals()
+	mockTUIRunner(t) // 避免启动真实 TUI
 	withTempHome(t)
 	removePortableMarker(t)
 
@@ -551,7 +565,11 @@ func TestStartTUILockError(t *testing.T) {
 }
 
 func TestStartTUIForceAcquireError(t *testing.T) {
+	if isRoot() {
+		t.Skip("skipping: running as root")
+	}
 	resetGlobals()
+	mockTUIRunner(t) // 避免启动真实 TUI
 	withTempHome(t)
 	removePortableMarker(t)
 
@@ -560,10 +578,17 @@ func TestStartTUIForceAcquireError(t *testing.T) {
 	if err := os.WriteFile(lockPath, []byte("123"), 0600); err != nil {
 		t.Fatalf("write lock: %v", err)
 	}
+	// 将锁文件也设为只读，阻止覆盖写入
+	if err := os.Chmod(lockPath, 0444); err != nil {
+		t.Fatalf("chmod lock file: %v", err)
+	}
 	if err := os.Chmod(customDir, 0555); err != nil {
 		t.Fatalf("chmod: %v", err)
 	}
-	defer os.Chmod(customDir, 0755)
+	defer func() {
+		os.Chmod(lockPath, 0644)
+		os.Chmod(customDir, 0755)
+	}()
 
 	manager, err := config.NewManagerWithDir(customDir)
 	if err != nil {
