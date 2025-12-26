@@ -106,45 +106,6 @@ go vet ./...
 4. **用户目录**: 使用 `os.UserHomeDir()` 获取跨平台主目录
 5. **开发环境**: 主要在 WSL2 (Ubuntu 20.04) 上开发和测试
 
-### 配置文件格式
-
-**Claude 配置** (`~/.claude/settings.json`):
-```json
-{
-  "env": {
-    "ANTHROPIC_AUTH_TOKEN": "sk-xxx",
-    "ANTHROPIC_BASE_URL": "https://api.example.com",
-    "ANTHROPIC_MODEL": "claude-sonnet-4",
-    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "claude-haiku-3.5",
-    "ANTHROPIC_DEFAULT_SONNET_MODEL": "claude-sonnet-4",
-    "ANTHROPIC_DEFAULT_OPUS_MODEL": "claude-opus-4",
-    "CLAUDE_CODE_MODEL": "claude-3-opus",
-    "CLAUDE_CODE_MAX_TOKENS": "32000"
-  },
-  "permissions": {
-    "allow": [],
-    "deny": []
-  }
-}
-```
-
-**Codex 配置** (`~/.codex/auth.json` + `~/.codex/config.toml`):
-```json
-{
-  "OPENAI_API_KEY": "sk-xxx"
-}
-```
-```toml
-model_provider = "custom"
-model = "gpt-5-codex"
-model_reasoning_effort = "high"
-
-[model_providers.custom]
-name = "custom"
-base_url = "https://api.example.com"
-wire_api = "responses"
-```
-
 ### 重要实现细节
 
 3. **原子写入**: 使用临时文件 + 重命名确保原子性
