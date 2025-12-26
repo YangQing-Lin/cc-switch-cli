@@ -18,9 +18,13 @@ const (
 // ClaudeConfig 表示 Claude 插件配置文件结构
 type ClaudeConfig map[string]interface{}
 
+var claudeUserHomeDirFunc = os.UserHomeDir
+var claudeAtomicWriteFileFunc = utils.AtomicWriteFile
+var claudeRemoveFileFunc = os.Remove
+
 // GetClaudeConfigPath 获取 Claude 插件配置文件路径
 func GetClaudeConfigPath() (string, error) {
-	home, err := os.UserHomeDir()
+	home, err := claudeUserHomeDirFunc()
 	if err != nil {
 		return "", fmt.Errorf("获取用户主目录失败: %w", err)
 	}
@@ -30,7 +34,7 @@ func GetClaudeConfigPath() (string, error) {
 
 // EnsureClaudeDirExists 确保 Claude 配置目录存在
 func EnsureClaudeDirExists() error {
-	home, err := os.UserHomeDir()
+	home, err := claudeUserHomeDirFunc()
 	if err != nil {
 		return fmt.Errorf("获取用户主目录失败: %w", err)
 	}
@@ -90,7 +94,7 @@ func WriteClaudeConfig(config ClaudeConfig) error {
 	data = append(data, '\n')
 
 	// 写入文件（权限 0600，保护敏感信息）
-	if err := utils.AtomicWriteFile(path, data, 0600); err != nil {
+	if err := claudeAtomicWriteFileFunc(path, data, 0600); err != nil {
 		return fmt.Errorf("写入 Claude 配置失败: %w", err)
 	}
 
@@ -149,7 +153,7 @@ func RemoveClaudePlugin() (bool, error) {
 
 	// 如果配置为空，删除文件
 	if len(config) == 0 {
-		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		if err := claudeRemoveFileFunc(path); err != nil && !os.IsNotExist(err) {
 			return false, fmt.Errorf("删除空配置文件失败: %w", err)
 		}
 		return true, nil

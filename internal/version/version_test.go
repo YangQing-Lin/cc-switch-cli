@@ -1,6 +1,8 @@
 package version
 
 import (
+	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -275,6 +277,82 @@ func TestIsNewerVersion(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := isNewerVersion(tt.latest, tt.current); got != tt.want {
 				t.Fatalf("isNewerVersion(%q, %q) = %v, want %v", tt.latest, tt.current, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestParseSemverNumericIdentifier(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		wantVal int
+		wantOK  bool
+	}{
+		{name: "empty", input: "", wantOK: false},
+		{name: "non numeric", input: "1a", wantOK: false},
+		{name: "leading zero", input: "01", wantOK: false},
+		{name: "valid", input: "123", wantVal: 123, wantOK: true},
+		{name: "too large", input: "999999999999999999999999999999", wantOK: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := parseSemverNumericIdentifier(tt.input)
+			if ok != tt.wantOK {
+				t.Fatalf("ok=%v, want %v (got=%d)", ok, tt.wantOK, got)
+			}
+			if ok && got != tt.wantVal {
+				t.Fatalf("got=%d, want %d", got, tt.wantVal)
+			}
+		})
+	}
+}
+
+func TestComparePreRelease(t *testing.T) {
+	tests := []struct {
+		name string
+		a    []string
+		b    []string
+		want int
+	}{
+		{name: "equal", a: []string{"alpha", "1"}, b: []string{"alpha", "1"}, want: 0},
+		{name: "numeric greater", a: []string{"alpha", "2"}, b: []string{"alpha", "1"}, want: 1},
+		{name: "numeric smaller", a: []string{"alpha", "1"}, b: []string{"alpha", "2"}, want: -1},
+		{name: "numeric lower than non numeric", a: []string{"1"}, b: []string{"alpha"}, want: -1},
+		{name: "non numeric higher than numeric", a: []string{"alpha"}, b: []string{"1"}, want: 1},
+		{name: "lexical compare", a: []string{"beta"}, b: []string{"alpha"}, want: 1},
+		{name: "shorter lower precedence", a: []string{"alpha"}, b: []string{"alpha", "1"}, want: -1},
+		{name: "longer higher precedence", a: []string{"alpha", "1"}, b: []string{"alpha"}, want: 1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := comparePreRelease(tt.a, tt.b)
+			if got != tt.want {
+				t.Fatalf("comparePreRelease(%v, %v)=%d, want %d", tt.a, tt.b, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestParseSemverParts_Invalid(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  bool
+	}{
+		{name: "empty", input: "", want: false},
+		{name: "empty token", input: "1..0", want: false},
+		{name: "non numeric", input: "1.a.0", want: false},
+		{name: "valid short", input: "1", want: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, ok := parseSemverParts(tt.input)
+			if ok != tt.want {
+				t.Fatalf("parseSemverParts(%q) ok=%v, want %v", tt.input, ok, tt.want)
 			}
 		})
 	}
@@ -589,6 +667,76 @@ func TestExtractBinaryErrors(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestExtractTarGzErrors(t *testing.T) {
+	t.Run("missing file", func(t *testing.T) {
+		_, err := extractTarGz(filepath.Join(t.TempDir(), "missing.tar.gz"), t.TempDir())
+		if err == nil {
+			t.Fatalf("expected error")
+		}
+	})
+
+	t.Run("invalid gzip", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "bad.tar.gz")
+		if err := os.WriteFile(path, []byte("not a gzip"), 0600); err != nil {
+			t.Fatalf("write bad gzip: %v", err)
+		}
+		_, err := extractTarGz(path, t.TempDir())
+		if err == nil {
+			t.Fatalf("expected error")
+		}
+	})
+
+	t.Run("invalid tar stream", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "bad.tar.gz")
+		var buf bytes.Buffer
+		gz := gzip.NewWriter(&buf)
+		if _, err := gz.Write([]byte("not a tar")); err != nil {
+			t.Fatalf("write gzip payload: %v", err)
+		}
+		if err := gz.Close(); err != nil {
+			t.Fatalf("close gzip: %v", err)
+		}
+		if err := os.WriteFile(path, buf.Bytes(), 0600); err != nil {
+			t.Fatalf("write bad tar.gz: %v", err)
+		}
+		_, err := extractTarGz(path, t.TempDir())
+		if err == nil {
+			t.Fatalf("expected error")
+		}
+	})
+
+	t.Run("create file error", func(t *testing.T) {
+		resetVersionHooks(t)
+		createFileFunc = func(string) (*os.File, error) { return nil, errors.New("create boom") }
+
+		archivePath := createArchiveWithBinary(t, "tar.gz", []byte("binary"))
+		_, err := extractTarGz(archivePath, t.TempDir())
+		if err == nil || !strings.Contains(err.Error(), "create boom") {
+			t.Fatalf("expected create error, got: %v", err)
+		}
+	})
+}
+
+func TestExtractZipErrors(t *testing.T) {
+	t.Run("missing file", func(t *testing.T) {
+		_, err := extractZip(filepath.Join(t.TempDir(), "missing.zip"), t.TempDir())
+		if err == nil {
+			t.Fatalf("expected error")
+		}
+	})
+
+	t.Run("create file error", func(t *testing.T) {
+		resetVersionHooks(t)
+		createFileFunc = func(string) (*os.File, error) { return nil, errors.New("create boom") }
+
+		archivePath := createArchiveWithBinary(t, "zip", []byte("binary"))
+		_, err := extractZip(archivePath, t.TempDir())
+		if err == nil || !strings.Contains(err.Error(), "create boom") {
+			t.Fatalf("expected create error, got: %v", err)
+		}
+	})
 }
 
 func TestDownloadFile(t *testing.T) {
@@ -1124,6 +1272,26 @@ func TestCopyFile(t *testing.T) {
 			},
 			wantErr:     true,
 			errContains: "no such file",
+		},
+		{
+			name: "dest create error",
+			setup: func(t *testing.T) (string, string) {
+				src := filepath.Join(t.TempDir(), "src.txt")
+				if err := os.WriteFile(src, []byte("copy"), 0600); err != nil {
+					t.Fatalf("创建源文件失败: %v", err)
+				}
+				return src, t.TempDir()
+			},
+			wantErr: true,
+		},
+		{
+			name: "copy error from directory source",
+			setup: func(t *testing.T) (string, string) {
+				srcDir := t.TempDir()
+				dst := filepath.Join(t.TempDir(), "dst.txt")
+				return srcDir, dst
+			},
+			wantErr: true,
 		},
 	}
 

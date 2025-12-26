@@ -76,6 +76,19 @@ func TestGetPortableConfigDir(t *testing.T) {
 	}
 }
 
+func TestPortableExecutableError(t *testing.T) {
+	orig := portableExecutableFunc
+	portableExecutableFunc = func() (string, error) { return "", errors.New("exec error") }
+	t.Cleanup(func() { portableExecutableFunc = orig })
+
+	if IsPortableMode() {
+		t.Fatalf("expected IsPortableMode false on exec error")
+	}
+	if _, err := GetPortableConfigDir(); err == nil {
+		t.Fatalf("expected GetPortableConfigDir error")
+	}
+}
+
 func withPortableMarker(t *testing.T, asDir bool) {
 	t.Helper()
 

@@ -2,6 +2,7 @@ package claude
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -362,5 +363,192 @@ func TestIsClaudePluginAppliedAndStatus(t *testing.T) {
 				}
 			})
 		})
+	}
+}
+
+func TestClaudePlugin_UserHomeDirError(t *testing.T) {
+	orig := claudeUserHomeDirFunc
+	claudeUserHomeDirFunc = func() (string, error) { return "", errors.New("no home") }
+	t.Cleanup(func() { claudeUserHomeDirFunc = orig })
+
+	if _, err := GetClaudeConfigPath(); err == nil {
+		t.Fatalf("expected GetClaudeConfigPath error")
+	}
+	if err := EnsureClaudeDirExists(); err == nil {
+		t.Fatalf("expected EnsureClaudeDirExists error")
+	}
+	if _, _, err := ClaudeConfigStatus(); err == nil {
+		t.Fatalf("expected ClaudeConfigStatus error")
+	}
+}
+
+func TestWriteClaudeConfig_Errors(t *testing.T) {
+	testutil.WithTempHome(t, func(_ string) {
+		t.Run("marshal error", func(t *testing.T) {
+			err := WriteClaudeConfig(ClaudeConfig{"bad": make(chan int)})
+			if err == nil || !strings.Contains(err.Error(), "序列化 Claude 配置失败") {
+				t.Fatalf("expected marshal error, got: %v", err)
+			}
+		})
+
+		t.Run("atomic write error", func(t *testing.T) {
+			orig := claudeAtomicWriteFileFunc
+			claudeAtomicWriteFileFunc = func(string, []byte, os.FileMode) error {
+				return errors.New("write boom")
+			}
+			t.Cleanup(func() { claudeAtomicWriteFileFunc = orig })
+
+			err := WriteClaudeConfig(ClaudeConfig{"foo": "bar"})
+			if err == nil || !strings.Contains(err.Error(), "写入 Claude 配置失败") {
+				t.Fatalf("expected write error, got: %v", err)
+			}
+		})
+	})
+}
+
+func TestRemoveClaudePlugin_RemoveFileError(t *testing.T) {
+	testutil.WithTempHome(t, func(_ string) {
+		if err := WriteClaudeConfig(ClaudeConfig{"primaryApiKey": managedAPIKey}); err != nil {
+			t.Fatalf("write config: %v", err)
+		}
+
+		orig := claudeRemoveFileFunc
+		claudeRemoveFileFunc = func(string) error { return errors.New("rm boom") }
+		t.Cleanup(func() { claudeRemoveFileFunc = orig })
+
+		_, err := RemoveClaudePlugin()
+		if err == nil || !strings.Contains(err.Error(), "删除空配置文件失败") {
+			t.Fatalf("expected remove error, got: %v", err)
+		}
+	})
+}
+
+func TestReadClaudeConfig_ReadFileError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows 权限测试不稳定，跳过")
+	}
+	testutil.WithTempHome(t, func(home string) {
+		dir := filepath.Join(home, claudeDir)
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatalf("创建目录失败: %v", err)
+		}
+		cfgPath := filepath.Join(dir, claudeConfigFile)
+		if err := os.WriteFile(cfgPath, []byte(`{"foo":"bar"}`), 0600); err != nil {
+			t.Fatalf("写入配置失败: %v", err)
+		}
+		if err := os.Chmod(cfgPath, 0000); err != nil {
+			t.Fatalf("设置权限失败: %v", err)
+		}
+		t.Cleanup(func() { _ = os.Chmod(cfgPath, 0600) })
+
+		_, err := ReadClaudeConfig()
+		if err == nil || !strings.Contains(err.Error(), "读取 Claude 配置失败") {
+			t.Fatalf("expected read error, got: %v", err)
+		}
+	})
+}
+
+func TestApplyClaudePlugin_Errors(t *testing.T) {
+	t.Run("read error", func(t *testing.T) {
+		testutil.WithTempHome(t, func(home string) {
+			dir := filepath.Join(home, claudeDir)
+			if err := os.MkdirAll(dir, 0755); err != nil {
+				t.Fatalf("创建目录失败: %v", err)
+			}
+			if err := os.WriteFile(filepath.Join(dir, claudeConfigFile), []byte("{bad"), 0600); err != nil {
+				t.Fatalf("写入配置失败: %v", err)
+			}
+
+			_, err := ApplyClaudePlugin()
+			if err == nil || !strings.Contains(err.Error(), "解析 Claude 配置失败") {
+				t.Fatalf("expected parse error, got: %v", err)
+			}
+		})
+	})
+
+	t.Run("write error", func(t *testing.T) {
+		testutil.WithTempHome(t, func(_ string) {
+			orig := claudeAtomicWriteFileFunc
+			claudeAtomicWriteFileFunc = func(string, []byte, os.FileMode) error { return errors.New("write boom") }
+			t.Cleanup(func() { claudeAtomicWriteFileFunc = orig })
+
+			_, err := ApplyClaudePlugin()
+			if err == nil || !strings.Contains(err.Error(), "写入 Claude 配置失败") {
+				t.Fatalf("expected write error, got: %v", err)
+			}
+		})
+	})
+}
+
+func TestRemoveClaudePlugin_Errors(t *testing.T) {
+	t.Run("read error", func(t *testing.T) {
+		testutil.WithTempHome(t, func(home string) {
+			dir := filepath.Join(home, claudeDir)
+			if err := os.MkdirAll(dir, 0755); err != nil {
+				t.Fatalf("创建目录失败: %v", err)
+			}
+			if err := os.WriteFile(filepath.Join(dir, claudeConfigFile), []byte("{bad"), 0600); err != nil {
+				t.Fatalf("写入配置失败: %v", err)
+			}
+
+			_, err := RemoveClaudePlugin()
+			if err == nil || !strings.Contains(err.Error(), "解析 Claude 配置失败") {
+				t.Fatalf("expected parse error, got: %v", err)
+			}
+		})
+	})
+
+	t.Run("write error", func(t *testing.T) {
+		testutil.WithTempHome(t, func(_ string) {
+			if err := WriteClaudeConfig(ClaudeConfig{"primaryApiKey": managedAPIKey, "foo": "bar"}); err != nil {
+				t.Fatalf("write config: %v", err)
+			}
+
+			orig := claudeAtomicWriteFileFunc
+			claudeAtomicWriteFileFunc = func(string, []byte, os.FileMode) error { return errors.New("write boom") }
+			t.Cleanup(func() { claudeAtomicWriteFileFunc = orig })
+
+			_, err := RemoveClaudePlugin()
+			if err == nil || !strings.Contains(err.Error(), "写入 Claude 配置失败") {
+				t.Fatalf("expected write error, got: %v", err)
+			}
+		})
+	})
+}
+
+func TestIsClaudePluginApplied_TypeMismatch(t *testing.T) {
+	testutil.WithTempHome(t, func(_ string) {
+		if err := WriteClaudeConfig(ClaudeConfig{"primaryApiKey": 123}); err != nil {
+			t.Fatalf("write config: %v", err)
+		}
+		applied, err := IsClaudePluginApplied()
+		if err != nil {
+			t.Fatalf("IsClaudePluginApplied error: %v", err)
+		}
+		if applied {
+			t.Fatalf("expected not applied for non-string primaryApiKey")
+		}
+	})
+}
+
+func TestClaudeFunctions_UserHomeDirError(t *testing.T) {
+	orig := claudeUserHomeDirFunc
+	claudeUserHomeDirFunc = func() (string, error) { return "", errors.New("no home") }
+	t.Cleanup(func() { claudeUserHomeDirFunc = orig })
+
+	if _, err := ReadClaudeConfig(); err == nil {
+		t.Fatalf("expected ReadClaudeConfig error")
+	}
+	if err := WriteClaudeConfig(ClaudeConfig{"foo": "bar"}); err == nil {
+		t.Fatalf("expected WriteClaudeConfig error")
+	}
+	if _, err := ApplyClaudePlugin(); err == nil {
+		t.Fatalf("expected ApplyClaudePlugin error")
+	}
+	if _, err := RemoveClaudePlugin(); err == nil {
+		t.Fatalf("expected RemoveClaudePlugin error")
+	}
+	if _, err := IsClaudePluginApplied(); err == nil {
+		t.Fatalf("expected IsClaudePluginApplied error")
 	}
 }
