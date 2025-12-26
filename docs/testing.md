@@ -9,6 +9,22 @@
 
 ## 运行测试
 
+### 推荐：统一入口脚本（可复现 + 受限环境友好）
+
+为了避免在 CI/sandbox 等受限环境下写入 `$HOME` 相关缓存路径（如 `~/.cache`、`~/go/pkg/sumdb`），仓库提供统一入口脚本，显式将 `GOPATH/GOCACHE/GOMODCACHE` 指向工作区的 `.cache/`。
+
+```bash
+# Linux/macOS/WSL
+./test.sh
+```
+
+```bat
+REM Windows (cmd)
+test.bat
+```
+
+脚本会在仓库根目录生成 `coverage.out`（`-covermode=count`），后续可用 `go tool cover` 分析。
+
 ### 运行所有测试
 
 ```bash
@@ -286,7 +302,7 @@ func TestExample(t *testing.T) {
 
 ```bash
 # 本地检查覆盖率
-go test ./... -coverprofile=coverage.out
+go test -coverprofile=coverage.out -covermode=count ./...
 go tool cover -func=coverage.out | grep total
 ```
 
