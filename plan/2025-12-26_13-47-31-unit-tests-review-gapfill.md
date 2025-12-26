@@ -11,7 +11,7 @@ created_at: 2025-12-26T13:47:31
 
 🎯 任务概述
 当前仓库已按 `.claude/specs/unit-tests/dev-plan.md` 与 `.claude/specs/unit-tests/fix-plan.md` 完成了一轮单测重写与修复，但仍需做一次面向“可维护性 + 覆盖率门禁 + 跨平台稳定性”的代码评审与补齐。
-同时需要对照 `plan/2025-12-23_17-34-59-unit-tests-90-coverage.md`（注意该文件名末尾存在空格；可用 `ls -lb plan` 观察到 `...md\ `）中的补充项，判断仓库缺失点并补上，最终把“总覆盖率门禁”对齐到 **90%+**。
+同时需要对照 `plan/2025-12-23_17-34-59-unit-tests-90-coverage.md` 中的补充项，判断仓库缺失点并补上，最终把“总覆盖率门禁”对齐到 **90%+**。
 
 📋 执行计划
 1. 统一可复现的测试入口与环境（本地 + sandbox）：新增 `test.sh`（必要时补 `test.bat`）作为统一入口；在入口中将 `GOPATH/GOCACHE/GOMODCACHE` 指向工作区（例如 `.cache/`）以规避受限环境写入 `~/.cache`、`~/go/pkg/sumdb` 的权限问题，并在文档中说明。
