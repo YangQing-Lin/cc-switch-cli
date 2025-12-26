@@ -1,7 +1,7 @@
 # CC-Switch CLI 测试文档
 
 > 项目测试指南和测试结构说明
-> 最后更新: 2025-12-24
+> 最后更新: 2025-12-26
 
 ## 测试概述
 
@@ -35,7 +35,6 @@ go test ./...
 go test ./internal/utils
 go test ./internal/settings
 go test ./internal/i18n
-go test ./internal/vscode
 
 # 运行所有 internal 包的测试
 go test ./internal/...
@@ -81,18 +80,15 @@ cc-switch-cli/
 │   ├── i18n/
 │   │   ├── i18n.go
 │   │   └── i18n_test.go          # i18n 包的测试
-│   ├── vscode/
-│   │   ├── vscode.go
-│   │   └── vscode_test.go        # vscode 包的测试
 │   └── testutil/
 │       └── testutil.go            # 测试工具函数
 ```
 
 ## 已实现的测试
 
-### 1. internal/utils 包测试
+> 注：本文不固定记录各包的即时覆盖率百分比，避免数据漂移；请按「测试覆盖率」章节生成 `coverage.out` 并查看 `go tool cover` 输出。
 
-**覆盖率: 69.7%**
+### 1. internal/utils 包测试
 
 测试文件: `internal/utils/file_test.go`
 
@@ -119,8 +115,6 @@ cc-switch-cli/
 
 ### 2. internal/settings 包测试
 
-**覆盖率: 82.4%**
-
 测试文件: `internal/settings/settings_test.go`
 
 - ✅ `TestNewManager` - 测试设置管理器创建
@@ -143,8 +137,6 @@ cc-switch-cli/
 
 ### 3. internal/i18n 包测试
 
-**覆盖率: 60.0%**
-
 测试文件: `internal/i18n/i18n_test.go`
 
 - ✅ `TestSetLanguage` - 测试设置语言
@@ -163,25 +155,7 @@ cc-switch-cli/
 - 翻译降级机制
 - 翻译完整性验证
 
-### 4. internal/vscode 包测试
-
-**覆盖率: 25.0%**
-
-测试文件: `internal/vscode/vscode_test.go`
-
-- ✅ `TestGetVsCodeConfigPath` - 测试 VS Code 配置路径
-- ✅ `TestGetCursorConfigPath` - 测试 Cursor 配置路径
-- ✅ `TestSupportedApps` - 测试支持的应用列表
-- ✅ `TestIsRunning` - 测试进程检测（基础）
-
-**关键功能:**
-- 跨平台路径解析
-- 多编辑器支持
-- 进程检测
-
-### 5. internal/config 包测试
-
-**覆盖率: 32.1%**
+### 4. internal/config 包测试
 
 测试文件: `internal/config/config_test.go`
 
@@ -205,7 +179,7 @@ cc-switch-cli/
 - 配置文件格式验证
 - ID 唯一性保证
 
-### 6. 测试工具包
+### 5. 测试工具包
 
 文件: `internal/testutil/testutil.go`
 
@@ -298,29 +272,17 @@ go tool cover -func=coverage.out | grep total
 - 总覆盖率（total）目标：**≥ 90.5%**
 - 关键包范围（后续补齐优先级）：`cmd`、`internal/utils`、`internal/testutil`、`internal/tui`、`internal/claude`、`internal/portable`、`internal/version`
 
-### 当前覆盖率 (2025-12-24)
+### 查看当前覆盖率（本地）
 
-| 包 | 覆盖率 | 状态 |
-|---|------:|:----:|
-| main | 100.0% | ✅ |
-| cmd | 78.3% | ⚠️ |
-| internal/backup | 88.2% | ⚠️ |
-| internal/claude | 80.3% | ⚠️ |
-| internal/config | 90.0% | ✅ |
-| internal/i18n | 100.0% | ✅ |
-| internal/lock | 90.5% | ✅ |
-| internal/portable | 86.7% | ⚠️ |
-| internal/settings | 94.1% | ✅ |
-| internal/template | 91.9% | ✅ |
-| internal/testutil | 79.5% | ⚠️ |
-| internal/tui | 89.9% | ✅ |
-| internal/utils | 80.3% | ⚠️ |
-| internal/version | 91.3% | ✅ |
-| **总计** | **89.7%** | ⚠️ |
+```bash
+./test.sh
+go tool cover -func=coverage.out | tee coverage.txt
+go tool cover -func=coverage.out | grep total
+```
 
 ### CI 覆盖率门禁
 
-项目设置了 **89%** 的覆盖率阈值，低于此值的 PR 将无法合并。
+项目设置了 **90%** 的覆盖率阈值（见 `.github/workflows/test.yml` 的 `COVERAGE_THRESHOLD`），低于此值的 PR 将无法合并。
 
 ```bash
 # 本地检查覆盖率
@@ -432,7 +394,7 @@ go test -v ./test/integration/... -timeout=60s
 
 2. **覆盖率门禁** (`coverage` job)
    - 生成覆盖率报告
-   - 检查覆盖率是否达到 89% 阈值
+   - 检查覆盖率是否达到 90% 阈值
    - 上传覆盖率报告到 Artifacts
    - 在 PR Summary 中显示覆盖率表格
 
@@ -451,7 +413,7 @@ go vet ./...
 go test -race -v ./...
 
 # 检查覆盖率
-go test ./... -coverprofile=coverage.out
+go test ./... -coverprofile=coverage.out -covermode=count
 COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
 echo "Coverage: ${COVERAGE}%"
 ```
