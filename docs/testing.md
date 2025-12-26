@@ -276,6 +276,28 @@ func TestExample(t *testing.T) {
 
 ## 测试覆盖率
 
+### 覆盖率口径（统一标准）
+
+本仓库以 `coverage.out` 作为覆盖率统计的**唯一输入**，并统一使用 `-covermode=count`，避免不同环境/命令导致口径不一致。
+
+```bash
+# 推荐：统一入口（会生成 coverage.out）
+./test.sh
+
+# 或直接运行（等价于脚本中的 go test 命令）
+go test -coverprofile=coverage.out -covermode=count ./...
+```
+
+**total 的定义**：以 `go tool cover -func=coverage.out` 输出中的 `total:` 为准（按 statements 汇总）。
+
+```bash
+go tool cover -func=coverage.out | grep total
+```
+
+**目标口径**：
+- 总覆盖率（total）目标：**≥ 90.5%**
+- 关键包范围（后续补齐优先级）：`cmd`、`internal/utils`、`internal/testutil`、`internal/tui`、`internal/claude`、`internal/portable`、`internal/version`
+
 ### 当前覆盖率 (2025-12-24)
 
 | 包 | 覆盖率 | 状态 |
