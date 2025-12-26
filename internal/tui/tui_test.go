@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,6 +14,7 @@ import (
 	"github.com/YangQing-Lin/cc-switch-cli/internal/template"
 	"github.com/YangQing-Lin/cc-switch-cli/internal/testutil"
 	"github.com/YangQing-Lin/cc-switch-cli/internal/version"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -138,6 +140,134 @@ func TestModelNewUpdateAndView(t *testing.T) {
 			tc.run(t)
 		})
 	}
+}
+
+func TestUpdateCommands_NoNetwork(t *testing.T) {
+	t.Run("checkUpdateCmd", func(t *testing.T) {
+		orig := checkForUpdateFunc
+		checkForUpdateFunc = func() (*version.ReleaseInfo, bool, error) {
+			return &version.ReleaseInfo{TagName: "v1.2.3"}, true, nil
+		}
+		t.Cleanup(func() { checkForUpdateFunc = orig })
+
+		msg := checkUpdateCmd()()
+		got, ok := msg.(updateCheckMsg)
+		if !ok {
+			t.Fatalf("expected updateCheckMsg, got %T", msg)
+		}
+		if got.err != nil || !got.hasUpdate || got.release == nil || got.release.TagName != "v1.2.3" {
+			t.Fatalf("unexpected msg: %+v", got)
+		}
+	})
+
+	t.Run("checkUpdateCmd error", func(t *testing.T) {
+		orig := checkForUpdateFunc
+		checkForUpdateFunc = func() (*version.ReleaseInfo, bool, error) {
+			return nil, false, errors.New("boom")
+		}
+		t.Cleanup(func() { checkForUpdateFunc = orig })
+
+		msg := checkUpdateCmd()()
+		got := msg.(updateCheckMsg)
+		if got.err == nil {
+			t.Fatalf("expected error")
+		}
+	})
+
+	t.Run("downloadUpdateCmd passes release", func(t *testing.T) {
+		var received *version.ReleaseInfo
+		orig := downloadUpdateFunc
+		downloadUpdateFunc = func(r *version.ReleaseInfo) error {
+			received = r
+			return errors.New("download boom")
+		}
+		t.Cleanup(func() { downloadUpdateFunc = orig })
+
+		release := &version.ReleaseInfo{TagName: "v9.9.9"}
+		msg := downloadUpdateCmd(release)()
+		got := msg.(updateDownloadMsg)
+		if received != release {
+			t.Fatalf("expected release pointer passed through")
+		}
+		if got.err == nil || !strings.Contains(got.err.Error(), "download boom") {
+			t.Fatalf("expected download error, got %v", got.err)
+		}
+	})
+}
+
+func TestViewDispatch_ExtraSubModes(t *testing.T) {
+	testutil.WithTempHome(t, func(_ string) {
+		manager := newTestManager(t)
+		tm := newTestTemplateManager(t)
+
+		m := Model{
+			manager:         manager,
+			templateManager: tm,
+			mode:            "template_manager",
+			currentApp:      "claude",
+			selectedTemplate: &template.Template{
+				ID:       "t1",
+				Name:     "T1",
+				Category: template.CategoryClaudeMd,
+				Content:  "line1\nline2\n",
+			},
+		}
+
+		m.templateMode = "apply_select_target"
+		if v := m.View(); !strings.Contains(v, "选择目标路径") {
+			t.Fatalf("expected target select view")
+		}
+
+		m.templateMode = "apply_preview_diff"
+		m.selectedTargetPath = filepath.Join(t.TempDir(), "missing.md")
+		if v := m.View(); !strings.Contains(v, "Diff 预览") || !strings.Contains(v, "将创建新文件") {
+			t.Fatalf("expected diff preview view")
+		}
+
+		m.templateMode = "save_select_source"
+		if v := m.View(); !strings.Contains(v, "保存为模板") {
+			t.Fatalf("expected source select view")
+		}
+
+		m.templateMode = "save_input_name"
+		m.selectedSourcePath = "CLAUDE.md"
+		m.saveNameInput = textinput.New()
+		if v := m.View(); !strings.Contains(v, "模板名称") {
+			t.Fatalf("expected save name view")
+		}
+
+		m.templateMode = "preview"
+		if v := m.View(); !strings.Contains(v, "预览:") {
+			t.Fatalf("expected template preview view")
+		}
+
+		m.mode = "mcp_manager"
+		m.selectedMcp = &config.McpServer{ID: "s1", Name: "Server One"}
+
+		m.mcpMode = "add"
+		m.initMcpForm(nil)
+		if v := m.View(); !strings.Contains(v, "添加 MCP 服务器") {
+			t.Fatalf("expected mcp form view")
+		}
+
+		m.mcpMode = "delete"
+		if v := m.View(); !strings.Contains(v, "确认删除") {
+			t.Fatalf("expected mcp delete view")
+		}
+
+		m.mcpMode = "apps_toggle"
+		if v := m.View(); !strings.Contains(v, "选择应用") {
+			t.Fatalf("expected mcp apps view")
+		}
+
+		m.mcpMode = "preset"
+		m.mcpPresets = []config.McpServer{
+			{ID: "p1", Name: "Preset One", Description: "desc", Server: map[string]any{"type": "http", "url": "http://localhost"}},
+		}
+		if v := m.View(); !strings.Contains(v, "预设服务器") {
+			t.Fatalf("expected mcp preset view")
+		}
+	})
 }
 
 func TestListModeKeySequences(t *testing.T) {
@@ -788,6 +918,70 @@ func TestPortableToggle(t *testing.T) {
 			tc.run(t)
 		})
 	}
+}
+
+func TestPortableModeErrors(t *testing.T) {
+	t.Run("executable error", func(t *testing.T) {
+		orig := tuiExecutableFunc
+		tuiExecutableFunc = func() (string, error) { return "", errors.New("no exe") }
+		t.Cleanup(func() { tuiExecutableFunc = orig })
+
+		m := Model{}
+		if err := m.enablePortableMode(); err == nil {
+			t.Fatalf("expected enablePortableMode error")
+		}
+		if err := m.disablePortableMode(); err == nil {
+			t.Fatalf("expected disablePortableMode error")
+		}
+	})
+
+	t.Run("write file error", func(t *testing.T) {
+		origExec := tuiExecutableFunc
+		origWrite := tuiWriteFileFunc
+		tuiExecutableFunc = func() (string, error) { return filepath.Join(t.TempDir(), "ccs"), nil }
+		tuiWriteFileFunc = func(string, []byte, os.FileMode) error { return errors.New("write boom") }
+		t.Cleanup(func() {
+			tuiExecutableFunc = origExec
+			tuiWriteFileFunc = origWrite
+		})
+
+		m := Model{}
+		if err := m.enablePortableMode(); err == nil || !strings.Contains(err.Error(), "创建 portable.ini 失败") {
+			t.Fatalf("expected write error, got %v", err)
+		}
+	})
+
+	t.Run("remove not exist ignored", func(t *testing.T) {
+		origExec := tuiExecutableFunc
+		origRemove := tuiRemoveFileFunc
+		tuiExecutableFunc = func() (string, error) { return filepath.Join(t.TempDir(), "ccs"), nil }
+		tuiRemoveFileFunc = func(string) error { return os.ErrNotExist }
+		t.Cleanup(func() {
+			tuiExecutableFunc = origExec
+			tuiRemoveFileFunc = origRemove
+		})
+
+		m := Model{}
+		if err := m.disablePortableMode(); err != nil {
+			t.Fatalf("expected ignore not-exist, got %v", err)
+		}
+	})
+
+	t.Run("remove error", func(t *testing.T) {
+		origExec := tuiExecutableFunc
+		origRemove := tuiRemoveFileFunc
+		tuiExecutableFunc = func() (string, error) { return filepath.Join(t.TempDir(), "ccs"), nil }
+		tuiRemoveFileFunc = func(string) error { return errors.New("rm boom") }
+		t.Cleanup(func() {
+			tuiExecutableFunc = origExec
+			tuiRemoveFileFunc = origRemove
+		})
+
+		m := Model{}
+		if err := m.disablePortableMode(); err == nil || !strings.Contains(err.Error(), "删除 portable.ini 失败") {
+			t.Fatalf("expected remove error, got %v", err)
+		}
+	})
 }
 
 func TestViewSnippets(t *testing.T) {

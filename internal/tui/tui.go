@@ -166,10 +166,13 @@ func tickCmd() tea.Cmd {
 	})
 }
 
+var checkForUpdateFunc = version.CheckForUpdate
+var downloadUpdateFunc = version.DownloadUpdate
+
 // checkUpdateCmd returns a command that checks for updates
 func checkUpdateCmd() tea.Cmd {
 	return func() tea.Msg {
-		release, hasUpdate, err := version.CheckForUpdate()
+		release, hasUpdate, err := checkForUpdateFunc()
 		return updateCheckMsg{
 			release:   release,
 			hasUpdate: hasUpdate,
@@ -181,7 +184,7 @@ func checkUpdateCmd() tea.Cmd {
 // downloadUpdateCmd returns a command that downloads and installs update
 func downloadUpdateCmd(release *version.ReleaseInfo) tea.Cmd {
 	return func() tea.Msg {
-		err := version.DownloadUpdate(release)
+		err := downloadUpdateFunc(release)
 		return updateDownloadMsg{
 			err: err,
 		}

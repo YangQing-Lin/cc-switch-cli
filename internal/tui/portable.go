@@ -6,10 +6,14 @@ import (
 	"path/filepath"
 )
 
+var tuiExecutableFunc = os.Executable
+var tuiWriteFileFunc = os.WriteFile
+var tuiRemoveFileFunc = os.Remove
+
 // enablePortableMode 启用便携模式
 func (m *Model) enablePortableMode() error {
 	// 获取可执行文件目录
-	execPath, err := os.Executable()
+	execPath, err := tuiExecutableFunc()
 	if err != nil {
 		return fmt.Errorf("获取程序路径失败: %w", err)
 	}
@@ -19,7 +23,7 @@ func (m *Model) enablePortableMode() error {
 
 	// 创建 portable.ini 文件
 	content := []byte("# CC-Switch Portable Mode\n# This file enables portable mode.\n# Delete this file to disable portable mode.\n")
-	if err := os.WriteFile(portableFile, content, 0644); err != nil {
+	if err := tuiWriteFileFunc(portableFile, content, 0644); err != nil {
 		return fmt.Errorf("创建 portable.ini 失败: %w", err)
 	}
 
@@ -29,7 +33,7 @@ func (m *Model) enablePortableMode() error {
 // disablePortableMode 禁用便携模式
 func (m *Model) disablePortableMode() error {
 	// 获取可执行文件目录
-	execPath, err := os.Executable()
+	execPath, err := tuiExecutableFunc()
 	if err != nil {
 		return fmt.Errorf("获取程序路径失败: %w", err)
 	}
@@ -38,7 +42,7 @@ func (m *Model) disablePortableMode() error {
 	portableFile := filepath.Join(execDir, "portable.ini")
 
 	// 删除 portable.ini 文件
-	if err := os.Remove(portableFile); err != nil && !os.IsNotExist(err) {
+	if err := tuiRemoveFileFunc(portableFile); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("删除 portable.ini 失败: %w", err)
 	}
 
