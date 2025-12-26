@@ -52,15 +52,6 @@ Codex 配置包括：
 			}
 		}
 
-		if modelName == "" && !cmd.Flags().Changed("model") {
-			input, _ := promptInput("请输入模型名称 (默认 claude-3-5-sonnet-20241022): ")
-			if input != "" {
-				modelName = input
-			} else {
-				modelName = "claude-3-5-sonnet-20241022"
-			}
-		}
-
 		// 设置默认值
 		if category == "" {
 			category = "custom"

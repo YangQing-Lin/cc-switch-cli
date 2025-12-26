@@ -2,11 +2,10 @@ package cmd
 
 import (
 	"fmt"
+	"syscall"
 
 	"github.com/YangQing-Lin/cc-switch-cli/internal/config"
 	"github.com/spf13/cobra"
-	"golang.org/x/term"
-	"syscall"
 )
 
 // updateCmd represents the update command
@@ -54,7 +53,7 @@ var updateCmd = &cobra.Command{
 			if currentToken != "" {
 				fmt.Printf("当前 API Token: %s\n", config.MaskToken(currentToken))
 				fmt.Print("输入新的 API Token (按 Enter 保留当前值): ")
-				bytePassword, err := term.ReadPassword(int(syscall.Stdin))
+				bytePassword, err := cmdReadPasswordFunc(int(syscall.Stdin))
 				fmt.Println() // 换行
 
 				if err == nil && len(bytePassword) > 0 {
@@ -64,7 +63,7 @@ var updateCmd = &cobra.Command{
 				}
 			} else {
 				fmt.Print("请输入 API Token: ")
-				bytePassword, err := term.ReadPassword(int(syscall.Stdin))
+				bytePassword, err := cmdReadPasswordFunc(int(syscall.Stdin))
 				fmt.Println() // 换行
 
 				if err != nil {

@@ -77,15 +77,6 @@ OAuth 模式配置：
 			}
 		}
 
-		if model == "" && !cmd.Flags().Changed("model") {
-			input, _ := promptInput("请输入模型名称 (默认 gemini-2.5-pro): ")
-			if input != "" {
-				model = input
-			} else {
-				model = "gemini-2.5-pro"
-			}
-		}
-
 		// 设置默认值
 		if model == "" {
 			model = "gemini-2.5-pro"

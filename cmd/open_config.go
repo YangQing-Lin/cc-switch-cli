@@ -19,6 +19,7 @@ var openConfigCmd = &cobra.Command{
 }
 
 var openConfigGOOS = runtime.GOOS
+var openConfigExecCommand = exec.Command
 
 func init() {
 	rootCmd.AddCommand(openConfigCmd)
@@ -39,12 +40,12 @@ func runOpenConfig() error {
 	var openCmd *exec.Cmd
 	switch openConfigGOOS {
 	case "windows":
-		openCmd = exec.Command("explorer", configDir)
+		openCmd = openConfigExecCommand("explorer", configDir)
 	case "darwin":
-		openCmd = exec.Command("open", configDir)
+		openCmd = openConfigExecCommand("open", configDir)
 	case "linux":
 		// 尝试多个 Linux 文件管理器
-		openCmd = exec.Command("xdg-open", configDir)
+		openCmd = openConfigExecCommand("xdg-open", configDir)
 	default:
 		return fmt.Errorf("不支持的操作系统: %s", openConfigGOOS)
 	}

@@ -8,6 +8,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var updateSelfInstallBinaryFunc = version.InstallBinary
+var updateSelfCheckForUpdateFunc = version.CheckForUpdate
+var updateSelfDownloadUpdateFunc = version.DownloadUpdate
+
 var updateSelfCmd = &cobra.Command{
 	Use:   "update",
 	Short: "更新到最新版本",
@@ -28,7 +32,7 @@ var updateSelfCmd = &cobra.Command{
 			}
 
 			// 安装二进制文件
-			if err := version.InstallBinary(fromFile, force); err != nil {
+			if err := updateSelfInstallBinaryFunc(fromFile, force); err != nil {
 				fmt.Println("❌ 安装失败")
 				fmt.Println()
 				fmt.Println(err.Error())
@@ -44,7 +48,7 @@ var updateSelfCmd = &cobra.Command{
 		fmt.Printf("当前版本: %s\n", version.GetVersion())
 		fmt.Println("正在检查更新...")
 
-		release, hasUpdate, err := version.CheckForUpdate()
+		release, hasUpdate, err := updateSelfCheckForUpdateFunc()
 		if err != nil {
 			fmt.Printf("❌ 检查更新失败: %v\n", err)
 			return
@@ -58,7 +62,7 @@ var updateSelfCmd = &cobra.Command{
 		fmt.Printf("\n发现新版本: %s\n", release.TagName)
 		fmt.Println("开始下载更新...")
 
-		if err := version.DownloadUpdate(release); err != nil {
+		if err := updateSelfDownloadUpdateFunc(release); err != nil {
 			fmt.Println("❌ 更新失败")
 			fmt.Println()
 			fmt.Println(err.Error())

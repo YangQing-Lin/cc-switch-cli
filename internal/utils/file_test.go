@@ -976,3 +976,48 @@ func TestBackupFile_ExistingBackup(t *testing.T) {
 		t.Fatalf("备份内容未更新: %s", string(content))
 	}
 }
+
+func TestBackupFile_ReadError(t *testing.T) {
+	tmpDir := t.TempDir()
+	srcPath := filepath.Join(tmpDir, "source-dir")
+	if err := os.MkdirAll(srcPath, 0755); err != nil {
+		t.Fatalf("创建目录失败: %v", err)
+	}
+
+	err := BackupFile(srcPath)
+	if err == nil || !strings.Contains(err.Error(), "读取原文件失败") {
+		t.Fatalf("expected read error, got: %v", err)
+	}
+}
+
+func TestAtomicWriteFile_RenameToDirectoryErrorCleansTemp(t *testing.T) {
+	tmpDir := t.TempDir()
+	targetDir := filepath.Join(tmpDir, "target-dir")
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		t.Fatalf("创建目录失败: %v", err)
+	}
+
+	err := AtomicWriteFile(targetDir, []byte("data"), 0644)
+	if err == nil || !strings.Contains(err.Error(), "重命名文件失败") {
+		t.Fatalf("expected rename error, got: %v", err)
+	}
+
+	tmpFiles, _ := filepath.Glob(filepath.Join(tmpDir, ".tmp-*"))
+	if len(tmpFiles) != 0 {
+		t.Fatalf("临时文件未清理: %v", tmpFiles)
+	}
+}
+
+func TestCopyFile_SourceIsDirectory(t *testing.T) {
+	tmpDir := t.TempDir()
+	srcDir := filepath.Join(tmpDir, "src")
+	if err := os.MkdirAll(srcDir, 0755); err != nil {
+		t.Fatalf("创建目录失败: %v", err)
+	}
+
+	dstPath := filepath.Join(tmpDir, "dst")
+	err := CopyFile(srcDir, dstPath)
+	if err == nil || !strings.Contains(err.Error(), "复制文件内容失败") {
+		t.Fatalf("expected copy error, got: %v", err)
+	}
+}

@@ -155,6 +155,23 @@ func TestCaptureOutput(t *testing.T) {
 	}
 }
 
+func TestCaptureOutput_RestoresOnPanic(t *testing.T) {
+	origStdout := os.Stdout
+	origStderr := os.Stderr
+
+	func() {
+		defer func() { _ = recover() }()
+		_, _ = CaptureOutput(t, func() { panic("boom") })
+	}()
+
+	if os.Stdout != origStdout {
+		t.Fatalf("stdout 未恢复")
+	}
+	if os.Stderr != origStderr {
+		t.Fatalf("stderr 未恢复")
+	}
+}
+
 func TestMockHTTPClient(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -244,7 +261,7 @@ func TestCreateTestArchive(t *testing.T) {
 
 func TestBubbleTeaTestHelper(t *testing.T) {
 	model := simpleModel{}
-	keys := []string{"a", "enter", "left"}
+	keys := []string{"a", "enter", "esc", "tab", "up", "down", "left", "right", "backspace", "delete", "ctrl+c"}
 	final := BubbleTeaTestHelper(t, model, keys)
 
 	got, ok := final.(simpleModel)
@@ -252,7 +269,7 @@ func TestBubbleTeaTestHelper(t *testing.T) {
 		t.Fatalf("返回模型类型不匹配")
 	}
 
-	if got.last != "left" {
+	if got.last != "ctrl+c" {
 		t.Fatalf("最后按键不匹配: %s", got.last)
 	}
 	if len(got.history) != len(keys) {

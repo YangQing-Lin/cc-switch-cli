@@ -57,14 +57,12 @@ func AtomicWriteFile(path string, data []byte, perm os.FileMode) error {
 
 	// 设置权限
 	// 如果原文件存在且未指定特殊权限，保留原文件权限
-	if perm == 0 && FileExists(path) {
+	if perm == 0 {
 		if stat, err := os.Stat(path); err == nil {
 			perm = stat.Mode()
 		} else {
 			perm = 0644 // 默认权限
 		}
-	} else if perm == 0 {
-		perm = 0644 // 默认权限
 	}
 
 	if err := os.Chmod(tmpPath, perm); err != nil {

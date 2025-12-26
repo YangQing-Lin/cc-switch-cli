@@ -3,11 +3,10 @@ package cmd
 import (
 	"fmt"
 	"strings"
+	"syscall"
 
 	"github.com/YangQing-Lin/cc-switch-cli/internal/config"
 	"github.com/spf13/cobra"
-	"golang.org/x/term"
-	"syscall"
 )
 
 var codexUpdateCmd = &cobra.Command{
@@ -67,7 +66,7 @@ var codexUpdateCmd = &cobra.Command{
 			if currentAPIKey != "" {
 				fmt.Printf("当前 API Key: %s\n", config.MaskToken(currentAPIKey))
 				fmt.Print("输入新的 API Key (按 Enter 保留当前值): ")
-				bytePassword, err := term.ReadPassword(int(syscall.Stdin))
+				bytePassword, err := cmdReadPasswordFunc(int(syscall.Stdin))
 				fmt.Println() // 换行
 
 				if err == nil && len(bytePassword) > 0 {
@@ -77,7 +76,7 @@ var codexUpdateCmd = &cobra.Command{
 				}
 			} else {
 				fmt.Print("请输入 API Key: ")
-				bytePassword, err := term.ReadPassword(int(syscall.Stdin))
+				bytePassword, err := cmdReadPasswordFunc(int(syscall.Stdin))
 				fmt.Println() // 换行
 
 				if err != nil {

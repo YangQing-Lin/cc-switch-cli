@@ -43,10 +43,6 @@ var addCmd = &cobra.Command{
 			baseURL, _ = promptInput("请输入 Base URL: ")
 		}
 
-		if category == "" && !cmd.Flags().Changed("category") {
-			category, _ = promptInput("请输入 Category (可选，默认 custom): ")
-		}
-
 		// 设置默认 category
 		if category == "" {
 			category = "custom"
@@ -105,7 +101,7 @@ func promptSecret(prompt string) (string, error) {
 	bytePassword, err := readPassword(fd)
 	if err != nil {
 		// 降级处理：如果隐藏输入失败，使用明文输入
-		reader := bufio.NewReader(os.Stdin)
+		reader := bufio.NewReaderSize(os.Stdin, 1)
 		input, err := reader.ReadString('\n')
 		if err != nil {
 			return "", err
@@ -120,7 +116,7 @@ func promptSecret(prompt string) (string, error) {
 // promptInput 提示用户输入普通信息
 func promptInput(prompt string) (string, error) {
 	fmt.Print(prompt)
-	reader := bufio.NewReader(os.Stdin)
+	reader := bufio.NewReaderSize(os.Stdin, 1)
 	input, err := reader.ReadString('\n')
 	if err != nil {
 		return "", err
