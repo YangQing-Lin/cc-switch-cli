@@ -111,6 +111,93 @@ func (m *Manager) writeClaudeConfig(provider *Provider) error {
 		}
 	}
 
+	// 有效 JSON：尽量做最小 patch，避免整体 MarshalIndent 导致顶层 key 重排
+	if utils.FileExists(settingsPath) {
+		existingData, err := os.ReadFile(settingsPath)
+		if err == nil && json.Valid(existingData) {
+			var updates []jsonUpdate
+
+			// env：如果 provider 提供了 env，则整体替换 env 对象（受管字段）
+			envMap, hasEnv := provider.SettingsConfig["env"].(map[string]interface{})
+			if hasEnv {
+				envObj := make(map[string]string)
+				knownKeys := []string{
+					"ANTHROPIC_AUTH_TOKEN",
+					"ANTHROPIC_BASE_URL",
+					"ANTHROPIC_MODEL",
+					"ANTHROPIC_DEFAULT_HAIKU_MODEL",
+					"ANTHROPIC_DEFAULT_SONNET_MODEL",
+					"ANTHROPIC_DEFAULT_OPUS_MODEL",
+					"CLAUDE_CODE_MODEL",
+					"CLAUDE_CODE_MAX_TOKENS",
+				}
+				for _, k := range knownKeys {
+					if v, ok := envMap[k].(string); ok && v != "" {
+						envObj[k] = v
+					}
+				}
+
+				desiredModel := ""
+				if model, ok := provider.SettingsConfig["model"].(string); ok {
+					desiredModel = model
+				} else if v, ok := envMap["ANTHROPIC_MODEL"].(string); ok && v != "" {
+					desiredModel = v
+				}
+				if desiredModel != "" {
+					if _, ok := envObj["ANTHROPIC_MODEL"]; !ok {
+						envObj["ANTHROPIC_MODEL"] = desiredModel
+					}
+				}
+
+				envJSON, err := json.MarshalIndent(envObj, "", "  ")
+				if err != nil {
+					return fmt.Errorf("序列化 env 失败: %w", err)
+				}
+				updates = append(updates, jsonUpdate{key: "env", value: envJSON, insert: true})
+
+				// model：env 存在时，按旧逻辑决定是否写入/删除
+				if desiredModel != "" {
+					modelJSON, _ := json.Marshal(desiredModel)
+					updates = append(updates, jsonUpdate{key: "model", value: modelJSON, insert: true})
+				} else {
+					updates = append(updates, jsonUpdate{key: "model", del: true})
+				}
+			} else if model, ok := provider.SettingsConfig["model"].(string); ok {
+				// env 不存在但 model 存在：保持旧行为——尽量把 env.ANTHROPIC_MODEL 补齐为 model（不覆盖已有值）
+				envObj := make(map[string]interface{})
+				var top map[string]json.RawMessage
+				if err := json.Unmarshal(existingData, &top); err == nil {
+					if raw, ok := top["env"]; ok && len(raw) > 0 {
+						_ = json.Unmarshal(raw, &envObj)
+					}
+				}
+				if v, ok := envObj["ANTHROPIC_MODEL"].(string); !ok || v == "" {
+					envObj["ANTHROPIC_MODEL"] = model
+				}
+				envJSON, err := json.MarshalIndent(envObj, "", "  ")
+				if err != nil {
+					return fmt.Errorf("序列化 env 失败: %w", err)
+				}
+				updates = append(updates, jsonUpdate{key: "env", value: envJSON, insert: true})
+
+				modelJSON, _ := json.Marshal(model)
+				updates = append(updates, jsonUpdate{key: "model", value: modelJSON, insert: true})
+			}
+
+			if len(updates) > 0 {
+				patched, err := jsonPatchTopLevelObject(existingData, updates)
+				if err == nil && json.Valid(patched) {
+					// 保留原权限（AtomicWriteFile perm=0 会自动继承）
+					if err := utils.AtomicWriteFile(settingsPath, patched, 0); err != nil {
+						return fmt.Errorf("保存设置失败: %w", err)
+					}
+					return nil
+				}
+			}
+		}
+	}
+
+	// fallback：文件不存在 / JSON 无效 / patch 失败 → 按旧逻辑整体写回（保证可用性）
 	if model, ok := provider.SettingsConfig["model"].(string); ok {
 		settings.Model = model
 	} else if settings.Env.AnthropicModel != "" {

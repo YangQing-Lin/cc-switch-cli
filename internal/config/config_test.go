@@ -1,8 +1,10 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -1563,6 +1565,176 @@ func TestClaudeSettingsUnknownFields(t *testing.T) {
 				t.Fatalf("extra field %s not preserved", tt.key)
 			}
 		})
+	}
+}
+
+func TestWriteClaudeConfigPreservesTopLevelKeyOrder(t *testing.T) {
+	dir := t.TempDir()
+	setTempHome(t, dir)
+
+	m, err := NewManagerWithDir(dir)
+	if err != nil {
+		t.Fatalf("NewManagerWithDir() error = %v", err)
+	}
+
+	settingsPath, err := m.GetClaudeSettingsPathWithDir()
+	if err != nil {
+		t.Fatalf("GetClaudeSettingsPathWithDir() error = %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(settingsPath), 0o700); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+
+	before := "{\n" +
+		"  \"permissions\": {\"allow\": [\"*\"], \"deny\": []},\n" +
+		"  \"env\": {\"ANTHROPIC_AUTH_TOKEN\": \"old\", \"ANTHROPIC_BASE_URL\": \"https://old.invalid\"},\n" +
+		"  \"zzz_unknown\": {\"keep\": true},\n" +
+		"  \"statusLine\": {\"enabled\": true},\n" +
+		"  \"model\": \"old-model\"\n" +
+		"}\n"
+	writeFile(t, settingsPath, []byte(before))
+
+	provider := Provider{
+		ID:   "p1",
+		Name: "Claude",
+		SettingsConfig: map[string]interface{}{
+			"env": map[string]interface{}{
+				"ANTHROPIC_AUTH_TOKEN": "new",
+				"ANTHROPIC_BASE_URL":   "https://new.invalid",
+			},
+			"model": "new-model",
+		},
+	}
+
+	if err := m.writeClaudeConfig(&provider); err != nil {
+		t.Fatalf("writeClaudeConfig() error = %v", err)
+	}
+
+	after1, err := os.ReadFile(settingsPath)
+	if err != nil {
+		t.Fatalf("read settings.json: %v", err)
+	}
+	if !json.Valid(after1) {
+		t.Fatalf("settings.json should be valid JSON")
+	}
+
+	keysBefore, err := jsonTopLevelKeyOrder([]byte(before))
+	if err != nil {
+		t.Fatalf("parse keys(before): %v", err)
+	}
+	keysAfter, err := jsonTopLevelKeyOrder(after1)
+	if err != nil {
+		t.Fatalf("parse keys(after): %v", err)
+	}
+
+	filter := func(keys []string) []string {
+		var out []string
+		for _, k := range keys {
+			if k == "env" || k == "model" {
+				continue
+			}
+			out = append(out, k)
+		}
+		return out
+	}
+	if strings.Join(filter(keysBefore), ",") != strings.Join(filter(keysAfter), ",") {
+		t.Fatalf("unmanaged top-level key order changed: before=%v after=%v", keysBefore, keysAfter)
+	}
+
+	var parsed map[string]interface{}
+	if err := json.Unmarshal(after1, &parsed); err != nil {
+		t.Fatalf("unmarshal after: %v", err)
+	}
+	if _, ok := parsed["zzz_unknown"]; !ok {
+		t.Fatalf("unknown field should be preserved")
+	}
+	if parsed["model"] != "new-model" {
+		t.Fatalf("model=%v, want new-model", parsed["model"])
+	}
+	env, _ := parsed["env"].(map[string]interface{})
+	if env["ANTHROPIC_AUTH_TOKEN"] != "new" {
+		t.Fatalf("env token not updated")
+	}
+
+	// 回归：同配置二次写入不应产生无关漂移
+	if err := m.writeClaudeConfig(&provider); err != nil {
+		t.Fatalf("writeClaudeConfig(second) error = %v", err)
+	}
+	after2, err := os.ReadFile(settingsPath)
+	if err != nil {
+		t.Fatalf("read settings.json(second): %v", err)
+	}
+	if string(after2) != string(after1) {
+		t.Fatalf("second write changed file content")
+	}
+}
+
+func jsonTopLevelKeyOrder(data []byte) ([]string, error) {
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.UseNumber()
+
+	tok, err := dec.Token()
+	if err != nil {
+		return nil, err
+	}
+	if d, ok := tok.(json.Delim); !ok || d != '{' {
+		return nil, fmt.Errorf("expected top-level object")
+	}
+
+	var keys []string
+	for dec.More() {
+		tok, err := dec.Token()
+		if err != nil {
+			return nil, err
+		}
+		key, ok := tok.(string)
+		if !ok {
+			return nil, fmt.Errorf("expected object key, got %T", tok)
+		}
+		keys = append(keys, key)
+		if err := skipJSONValue(dec); err != nil {
+			return nil, err
+		}
+	}
+	if _, err := dec.Token(); err != nil {
+		return nil, err
+	}
+	return keys, nil
+}
+
+func skipJSONValue(dec *json.Decoder) error {
+	tok, err := dec.Token()
+	if err != nil {
+		return err
+	}
+
+	delim, ok := tok.(json.Delim)
+	if !ok {
+		return nil
+	}
+
+	switch delim {
+	case '{':
+		for dec.More() {
+			if _, err := dec.Token(); err != nil {
+				return err
+			}
+			if err := skipJSONValue(dec); err != nil {
+				return err
+			}
+		}
+		_, err := dec.Token()
+		return err
+	case '[':
+		for dec.More() {
+			if err := skipJSONValue(dec); err != nil {
+				return err
+			}
+		}
+		_, err := dec.Token()
+		return err
+	default:
+		return nil
 	}
 }
 
