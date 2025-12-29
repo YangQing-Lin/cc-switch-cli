@@ -1375,6 +1375,43 @@ name = "Old"
 			},
 		},
 		{
+			name: "preserve unmanaged blocks order/comments/whitespace",
+			existing: "# Codex config.toml (before)\r\n" +
+				"# header comment\r\n" +
+				"\r\n" +
+				"[sandbox_workspace_write]\r\n" +
+				"enabled = true\r\n" +
+				"\r\n" +
+				"# between tables\r\n" +
+				"[model_providers]\r\n" +
+				"\r\n" +
+				"[model_providers.openai]\r\n" +
+				"name = \"OpenAI\"\r\n" +
+				"base_url = \"https://api.openai.invalid\"\r\n" +
+				"\r\n",
+			configContent: generateCodexConfigTOML("Custom", "https://api.example.com", "gpt-5", "high"),
+			verify: func(t *testing.T, data []byte) {
+				out := string(data)
+				if !strings.Contains(out, "[sandbox_workspace_write]\r\nenabled = true\r\n\r\n") {
+					t.Fatalf("sandbox block not preserved as-is")
+				}
+				if !strings.Contains(out, "# between tables\r\n[model_providers]\r\n") {
+					t.Fatalf("comment/whitespace between blocks not preserved as-is")
+				}
+
+				sandboxIdx := strings.Index(out, "[sandbox_workspace_write]")
+				modelProvidersIdx := strings.Index(out, "[model_providers]")
+				if sandboxIdx < 0 || modelProvidersIdx < 0 || sandboxIdx > modelProvidersIdx {
+					t.Fatalf("table order changed: sandbox=%d model_providers=%d", sandboxIdx, modelProvidersIdx)
+				}
+
+				var parsed map[string]interface{}
+				if err := toml.Unmarshal(data, &parsed); err != nil {
+					t.Fatalf("parse toml: %v", err)
+				}
+			},
+		},
+		{
 			name:          "fallback on invalid toml",
 			existing:      "custom = \"keep\"",
 			configContent: "invalid =",
@@ -1442,6 +1479,20 @@ name = "Old"
 			}
 			if tt.verify != nil {
 				tt.verify(t, data)
+			}
+
+			// 回归：同配置二次写入应保持一致性
+			if tt.name == "preserve unmanaged blocks order/comments/whitespace" {
+				if err := m.writeCodexConfig(&provider); err != nil {
+					t.Fatalf("second writeCodexConfig() error = %v", err)
+				}
+				data2, err := os.ReadFile(configPath)
+				if err != nil {
+					t.Fatalf("read config.toml (second): %v", err)
+				}
+				if string(data2) != string(data) {
+					t.Fatalf("second write changed file content")
+				}
 			}
 		})
 	}

@@ -182,25 +182,29 @@ func (m *Manager) writeCodexConfig(provider *Provider) error {
 		return utils.AtomicWriteFile(configPath, []byte(configContent), 0644)
 	}
 
-	// 读取现有配置（如果存在）
-	existingConfig := make(map[string]interface{})
-	if utils.FileExists(configPath) {
-		data, err := os.ReadFile(configPath)
-		if err == nil {
-			toml.Unmarshal(data, &existingConfig) // 忽略解析错误
-		}
+	// 如果目标文件不存在：直接写入 CCS 配置（无须保留 layout）
+	if !utils.FileExists(configPath) {
+		return utils.AtomicWriteFile(configPath, []byte(configContent), 0644)
 	}
 
-	// 合并配置
-	mergedConfig := mergeCodexConfig(existingConfig, ccsConfig)
-
-	// 序列化并写入
-	data, err := toml.Marshal(mergedConfig)
+	existingData, err := os.ReadFile(configPath)
 	if err != nil {
-		return fmt.Errorf("序列化 config.toml 失败: %w", err)
+		return fmt.Errorf("读取现有 config.toml 失败: %w", err)
 	}
 
-	return utils.AtomicWriteFile(configPath, data, 0644)
+	patched, err := patchCodexTOMLPreserveLayout(existingData, ccsConfig)
+	if err != nil {
+		// 解析/patch 失败：回退到完全覆盖，避免引入“读取→重排→写回”的副作用
+		return utils.AtomicWriteFile(configPath, []byte(configContent), 0644)
+	}
+
+	// 语义校验：保证写回后仍是可解析的 TOML
+	var _validate map[string]interface{}
+	if err := toml.Unmarshal(patched, &_validate); err != nil {
+		return fmt.Errorf("写回后的 config.toml 无法解析: %w", err)
+	}
+
+	return utils.AtomicWriteFile(configPath, patched, 0644)
 }
 
 // mergeCodexConfig 合并 Codex 配置，CCS 管理的字段覆盖，其他字段保留
