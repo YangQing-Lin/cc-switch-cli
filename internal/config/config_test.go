@@ -1412,6 +1412,34 @@ name = "Old"
 			},
 		},
 		{
+			name: "predictable insertion for missing top-level keys",
+			existing: "custom = \"keep\"\r\n" +
+				"model_provider = \"openai\"\r\n" +
+				"model = \"old\"\r\n" +
+				"[sandbox_workspace_write]\r\n" +
+				"enabled = true\r\n",
+			configContent: generateCodexConfigTOML("Custom", "https://api.example.com", "gpt-5", "high"),
+			verify: func(t *testing.T, data []byte) {
+				out := string(data)
+				idx := func(s string) int { return strings.Index(out, s) }
+
+				customIdx := idx("custom = \"keep\"")
+				mpIdx := idx("model_provider")
+				modelIdx := idx("model = ")
+				reasonIdx := idx("model_reasoning_effort")
+				disableIdx := idx("disable_response_storage")
+				sandboxIdx := idx("[sandbox_workspace_write]")
+
+				if customIdx < 0 || mpIdx < 0 || modelIdx < 0 || reasonIdx < 0 || disableIdx < 0 || sandboxIdx < 0 {
+					t.Fatalf("missing expected keys/blocks in output")
+				}
+				if !(customIdx < mpIdx && mpIdx < modelIdx && modelIdx < reasonIdx && reasonIdx < disableIdx && disableIdx < sandboxIdx) {
+					t.Fatalf("unexpected insertion order/position: custom=%d mp=%d model=%d reason=%d disable=%d sandbox=%d",
+						customIdx, mpIdx, modelIdx, reasonIdx, disableIdx, sandboxIdx)
+				}
+			},
+		},
+		{
 			name:          "fallback on invalid toml",
 			existing:      "custom = \"keep\"",
 			configContent: "invalid =",

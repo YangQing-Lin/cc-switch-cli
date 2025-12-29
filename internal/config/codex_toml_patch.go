@@ -16,6 +16,21 @@ type bytePatch struct {
 	repl  []byte
 }
 
+// Codex TOML “受管字段/规则”：
+// - Top-level：仅管理固定清单的 key（见 codexManagedTopLevelKeys）
+// - Provider tables：仅管理 configContent 中声明的 [model_providers.<name>] 子表；子表内的所有 key 都视为受管（但会忽略已废弃的 env_key）
+//
+// 插入策略（缺失字段）：
+// - Top-level key：插入到“第一个 table header（'[' 开头行）”之前，避免落入某个 table 的上下文
+// - 缺失的 [model_providers.<name>]：在文件末尾（保留原 trailing whitespace）追加整段 table block
+// - 缺失的 provider 字段：插入到对应 table 的末尾（尽量不扰动其后续空白/注释）
+var codexManagedTopLevelKeys = []string{
+	"model_provider",
+	"model",
+	"model_reasoning_effort",
+	"disable_response_storage",
+}
+
 func applyBytePatches(src []byte, patches []bytePatch) []byte {
 	if len(patches) == 0 {
 		return src
@@ -246,12 +261,7 @@ func findTableInsertOffset(data []byte, tableStart, tableEnd int) int {
 func buildCodexManagedKeyValues(ccsConfig map[string]interface{}) map[string]interface{} {
 	managed := make(map[string]interface{})
 
-	for _, k := range []string{
-		"model_provider",
-		"model",
-		"model_reasoning_effort",
-		"disable_response_storage",
-	} {
+	for _, k := range codexManagedTopLevelKeys {
 		if v, ok := ccsConfig[k]; ok {
 			managed[k] = v
 		}
@@ -416,7 +426,7 @@ func patchCodexTOMLPreserveLayout(existing []byte, ccsConfig map[string]interfac
 		topInsertOffset = findTrailingWhitespaceStart(existing)
 	}
 	var topMissing []string
-	for _, k := range []string{"model_provider", "model", "model_reasoning_effort", "disable_response_storage"} {
+	for _, k := range codexManagedTopLevelKeys {
 		if _, ok := managed[k]; !ok {
 			continue
 		}
