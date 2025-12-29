@@ -24,6 +24,5 @@
 
 ## 参考实现
 
-- `internal/config/codex_toml_patch.go:1`
+- `internal/utils/codex_toml_patch.go:1`
 - `internal/config/switch.go:133`
-

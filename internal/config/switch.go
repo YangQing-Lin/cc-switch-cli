@@ -115,7 +115,7 @@ func (m *Manager) writeClaudeConfig(provider *Provider) error {
 	if utils.FileExists(settingsPath) {
 		existingData, err := os.ReadFile(settingsPath)
 		if err == nil && json.Valid(existingData) {
-			var updates []jsonUpdate
+			var updates []utils.JSONUpdate
 
 			// env：如果 provider 提供了 env，则整体替换 env 对象（受管字段）
 			envMap, hasEnv := provider.SettingsConfig["env"].(map[string]interface{})
@@ -153,14 +153,14 @@ func (m *Manager) writeClaudeConfig(provider *Provider) error {
 				if err != nil {
 					return fmt.Errorf("序列化 env 失败: %w", err)
 				}
-				updates = append(updates, jsonUpdate{key: "env", value: envJSON, insert: true})
+				updates = append(updates, utils.JSONUpdate{Key: "env", Value: envJSON, Insert: true})
 
 				// model：env 存在时，按旧逻辑决定是否写入/删除
 				if desiredModel != "" {
 					modelJSON, _ := json.Marshal(desiredModel)
-					updates = append(updates, jsonUpdate{key: "model", value: modelJSON, insert: true})
+					updates = append(updates, utils.JSONUpdate{Key: "model", Value: modelJSON, Insert: true})
 				} else {
-					updates = append(updates, jsonUpdate{key: "model", del: true})
+					updates = append(updates, utils.JSONUpdate{Key: "model", Delete: true})
 				}
 			} else if model, ok := provider.SettingsConfig["model"].(string); ok {
 				// env 不存在但 model 存在：保持旧行为——尽量把 env.ANTHROPIC_MODEL 补齐为 model（不覆盖已有值）
@@ -178,14 +178,14 @@ func (m *Manager) writeClaudeConfig(provider *Provider) error {
 				if err != nil {
 					return fmt.Errorf("序列化 env 失败: %w", err)
 				}
-				updates = append(updates, jsonUpdate{key: "env", value: envJSON, insert: true})
+				updates = append(updates, utils.JSONUpdate{Key: "env", Value: envJSON, Insert: true})
 
 				modelJSON, _ := json.Marshal(model)
-				updates = append(updates, jsonUpdate{key: "model", value: modelJSON, insert: true})
+				updates = append(updates, utils.JSONUpdate{Key: "model", Value: modelJSON, Insert: true})
 			}
 
 			if len(updates) > 0 {
-				patched, err := jsonPatchTopLevelObject(existingData, updates)
+				patched, err := utils.PatchTopLevelJSONObject(existingData, updates)
 				if err == nil && json.Valid(patched) {
 					// 保留原权限（AtomicWriteFile perm=0 会自动继承）
 					if err := utils.AtomicWriteFile(settingsPath, patched, 0); err != nil {
@@ -279,7 +279,7 @@ func (m *Manager) writeCodexConfig(provider *Provider) error {
 		return fmt.Errorf("读取现有 config.toml 失败: %w", err)
 	}
 
-	patched, err := patchCodexTOMLPreserveLayout(existingData, ccsConfig)
+	patched, err := utils.PatchCodexTOMLPreserveLayout(existingData, ccsConfig)
 	if err != nil {
 		// 解析/patch 失败：回退到完全覆盖，避免引入“读取→重排→写回”的副作用
 		return utils.AtomicWriteFile(configPath, []byte(configContent), 0644)

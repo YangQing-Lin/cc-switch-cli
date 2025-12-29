@@ -1,4 +1,4 @@
-package config
+package utils
 
 import (
 	"bytes"
@@ -334,7 +334,7 @@ func buildProviderTableBlock(provider string, kv map[string]interface{}, newline
 
 // patchCodexTOMLPreserveLayout updates only managed key/value ranges in an existing TOML document,
 // and inserts missing managed entries without re-serializing the whole file.
-func patchCodexTOMLPreserveLayout(existing []byte, ccsConfig map[string]interface{}) ([]byte, error) {
+func PatchCodexTOMLPreserveLayout(existing []byte, ccsConfig map[string]interface{}) ([]byte, error) {
 	managed := buildCodexManagedKeyValues(ccsConfig)
 	if len(managed) == 0 {
 		return existing, nil

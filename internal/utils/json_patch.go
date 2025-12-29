@@ -1,4 +1,4 @@
-package config
+package utils
 
 import (
 	"bytes"
@@ -6,11 +6,11 @@ import (
 	"sort"
 )
 
-type jsonUpdate struct {
-	key    string
-	value  []byte // JSON-encoded value (object/string/number/literal). Ignored when del=true.
-	del    bool
-	insert bool // allow inserting when missing (for set ops)
+type JSONUpdate struct {
+	Key    string
+	Value  []byte // JSON-encoded value (object/string/number/literal). Ignored when Delete=true.
+	Delete bool
+	Insert bool // allow inserting when missing (for set ops)
 }
 
 type jsonMember struct {
@@ -234,7 +234,7 @@ func jsonFindTrailingWSBeforeClose(b []byte, objEnd int) int {
 	return i
 }
 
-func jsonPatchTopLevelObject(b []byte, updates []jsonUpdate) ([]byte, error) {
+func PatchTopLevelJSONObject(b []byte, updates []JSONUpdate) ([]byte, error) {
 	objStart, objEnd, members, ok := jsonParseTopLevelObjectMembers(b)
 	if !ok {
 		return nil, fmt.Errorf("invalid top-level json object")
@@ -249,12 +249,12 @@ func jsonPatchTopLevelObject(b []byte, updates []jsonUpdate) ([]byte, error) {
 
 	// replace/delete existing keys
 	for _, u := range updates {
-		m, exists := memberByKey[u.key]
+		m, exists := memberByKey[u.Key]
 		if !exists {
 			continue
 		}
-		if !u.del {
-			patches = append(patches, jsonBytePatch{start: m.valueStart, end: m.valueEnd, repl: u.value})
+		if !u.Delete {
+			patches = append(patches, jsonBytePatch{start: m.valueStart, end: m.valueEnd, repl: u.Value})
 			continue
 		}
 
@@ -320,10 +320,10 @@ func jsonPatchTopLevelObject(b []byte, updates []jsonUpdate) ([]byte, error) {
 	var inserts []byte
 	hasMembers := len(members) > 0
 	for _, u := range updates {
-		if u.del || !u.insert {
+		if u.Delete || !u.Insert {
 			continue
 		}
-		if _, exists := memberByKey[u.key]; exists {
+		if _, exists := memberByKey[u.Key]; exists {
 			continue
 		}
 		if hasMembers || len(inserts) > 0 {
@@ -336,12 +336,12 @@ func jsonPatchTopLevelObject(b []byte, updates []jsonUpdate) ([]byte, error) {
 			inserts = append(inserts, ' ')
 		}
 		inserts = append(inserts, '"')
-		inserts = append(inserts, []byte(u.key)...)
+		inserts = append(inserts, []byte(u.Key)...)
 		inserts = append(inserts, '"', ':')
 		if newline != nil {
 			inserts = append(inserts, ' ')
 		}
-		inserts = append(inserts, u.value...)
+		inserts = append(inserts, u.Value...)
 		hasMembers = true
 	}
 
