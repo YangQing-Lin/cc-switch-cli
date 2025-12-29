@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -284,6 +285,35 @@ func (m *Manager) writeGeminiSettingsFile(authType GeminiAuthType) error {
 		if err != nil {
 			return fmt.Errorf("读取现有 settings.json 失败: %w", err)
 		}
+		// 有效 JSON：尽量做最小 patch，避免整体 MarshalIndent 导致 key 重排/未知字段丢失
+		if json.Valid(data) {
+			securityObj := map[string]interface{}{
+				"auth": map[string]interface{}{
+					"selectedType": authType,
+				},
+			}
+			securityJSON, err := json.MarshalIndent(securityObj, "", "  ")
+			if err != nil {
+				return fmt.Errorf("序列化 security 失败: %w", err)
+			}
+
+			updates := []jsonUpdate{{key: "security", value: securityJSON, insert: true}}
+
+			// 保持 mcpServers 原样；但若缺失/为 null，则补齐为空对象（兼容旧行为）
+			var top map[string]json.RawMessage
+			if err := json.Unmarshal(data, &top); err == nil {
+				raw, ok := top["mcpServers"]
+				if !ok || len(bytes.TrimSpace(raw)) == 0 || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+					updates = append(updates, jsonUpdate{key: "mcpServers", value: []byte("{}"), insert: true})
+				}
+			}
+
+			patched, err := jsonPatchTopLevelObject(data, updates)
+			if err == nil && json.Valid(patched) {
+				return utils.AtomicWriteFile(settingsPath, patched, 0)
+			}
+		}
+
 		if err := json.Unmarshal(data, &existingSettings); err != nil {
 			return fmt.Errorf("解析现有 settings.json 失败: %w", err)
 		}
@@ -311,7 +341,7 @@ func (m *Manager) writeGeminiSettingsFile(authType GeminiAuthType) error {
 	}
 
 	// 原子写入 JSON，权限 0600
-	return utils.WriteJSONFile(settingsPath, settings, 0600)
+	return utils.WriteJSONFile(settingsPath, &settings, 0600)
 }
 
 // ExtractGeminiConfigFromProvider extracts Gemini configuration fields from a Provider

@@ -1669,6 +1669,86 @@ func TestWriteClaudeConfigPreservesTopLevelKeyOrder(t *testing.T) {
 	}
 }
 
+func TestWriteGeminiSettingsPreservesTopLevelKeyOrder(t *testing.T) {
+	dir := t.TempDir()
+	m := &Manager{customDir: dir}
+
+	settingsPath, err := m.GetGeminiSettingsPathWithDir()
+	if err != nil {
+		t.Fatalf("GetGeminiSettingsPathWithDir() error = %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(settingsPath), 0o700); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+
+	before := "{\n" +
+		"  \"mcpServers\": {\"keep\": true},\n" +
+		"  \"security\": {\"auth\": {\"selectedType\": \"gemini-api-key\"}},\n" +
+		"  \"yyy_unknown\": {\"x\": 1}\n" +
+		"}\n"
+	writeFile(t, settingsPath, []byte(before))
+
+	if err := m.writeGeminiSettingsFile(GeminiAuthOAuth); err != nil {
+		t.Fatalf("writeGeminiSettingsFile() error = %v", err)
+	}
+
+	after1, err := os.ReadFile(settingsPath)
+	if err != nil {
+		t.Fatalf("read settings.json: %v", err)
+	}
+	if !json.Valid(after1) {
+		t.Fatalf("settings.json should be valid JSON")
+	}
+
+	keysBefore, err := jsonTopLevelKeyOrder([]byte(before))
+	if err != nil {
+		t.Fatalf("parse keys(before): %v", err)
+	}
+	keysAfter, err := jsonTopLevelKeyOrder(after1)
+	if err != nil {
+		t.Fatalf("parse keys(after): %v", err)
+	}
+
+	filter := func(keys []string) []string {
+		var out []string
+		for _, k := range keys {
+			if k == "security" {
+				continue
+			}
+			out = append(out, k)
+		}
+		return out
+	}
+	if strings.Join(filter(keysBefore), ",") != strings.Join(filter(keysAfter), ",") {
+		t.Fatalf("unmanaged top-level key order changed: before=%v after=%v", keysBefore, keysAfter)
+	}
+
+	var parsed map[string]interface{}
+	if err := json.Unmarshal(after1, &parsed); err != nil {
+		t.Fatalf("unmarshal after: %v", err)
+	}
+	if _, ok := parsed["yyy_unknown"]; !ok {
+		t.Fatalf("unknown field should be preserved")
+	}
+	sec, _ := parsed["security"].(map[string]interface{})
+	auth, _ := sec["auth"].(map[string]interface{})
+	if auth["selectedType"] != string(GeminiAuthOAuth) {
+		t.Fatalf("selectedType=%v, want %s", auth["selectedType"], GeminiAuthOAuth)
+	}
+
+	// 回归：同配置二次写入不应产生无关漂移
+	if err := m.writeGeminiSettingsFile(GeminiAuthOAuth); err != nil {
+		t.Fatalf("writeGeminiSettingsFile(second) error = %v", err)
+	}
+	after2, err := os.ReadFile(settingsPath)
+	if err != nil {
+		t.Fatalf("read settings.json(second): %v", err)
+	}
+	if string(after2) != string(after1) {
+		t.Fatalf("second write changed file content")
+	}
+}
+
 func jsonTopLevelKeyOrder(data []byte) ([]string, error) {
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.UseNumber()
